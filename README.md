@@ -1,143 +1,118 @@
-# 大纲编辑器
+# Tree Index - 大纲编辑器
 
-> 基于 Next.js 的 AI 智能大纲整理工具，类似幕布的笔记应用
+基于 Next.js 的 AI 智能大纲整理工具，像素级复刻幕布（Mubu）UI 设计。
 
-一个强大的大纲编辑器，支持无限层级、AI 智能重组、图片插入、撤销重做等功能。
+## ✨ 特性
 
-## 核心特性
+- 🎨 **像素级复刻幕布 UI** - 完全还原幕布的设计风格和交互体验
+- 📝 **无限层级大纲** - 支持任意深度的层级结构
+- 🔄 **折叠/展开** - 点击圆点即可折叠或展开子节点
+- 🎯 **实时编辑** - 直接在节点上编辑内容
+- 🌓 **深色模式** - 支持亮色/暗色主题切换
+- 🏷️ **标签系统** - 支持为节点添加标签（如 #重点）
+- 📱 **响应式设计** - 适配各种屏幕尺寸
 
-- ✅ **自由编辑的大纲笔记** - 类似幕布的编辑体验
-- ✅ **无限层级支持** - 支持任意深度的层级嵌套
-- ✅ **折叠/展开** - 便捷的节点折叠和展开
-- ✅ **AI 智能重组** - 自动识别主题并建立层级分类（核心功能）
-- ✅ **图片插入** - 支持第三方图床（Imgur、SM.MS、自定义）
-- ✅ **数据持久化** - 基于 IndexedDB 的本地存储
-- ✅ **导入/导出** - JSON 格式的文档导入导出
-- ✅ **撤销/重做** - 完整的历史记录管理
+## 🛠️ 技术栈
 
-## 技术栈
+- **Next.js 14+** (App Router) - React 全栈框架
+- **TypeScript** - 类型安全
+- **Tailwind CSS** - 原子化 CSS
+- **Zustand** - 轻量级状态管理
+- **Immer** - 不可变数据处理
+- **Lucide React** - 图标库
 
-- **框架**: Next.js 14+ (App Router)
-- **语言**: TypeScript
-- **样式**: Tailwind CSS
-- **UI 组件**: shadcn/ui
-- **状态管理**: Zustand + Immer
-- **本地存储**: Dexie.js (IndexedDB)
-- **AI 集成**: Vercel AI SDK (OpenAI/Claude/Gemini)
-- **类型验证**: Zod
-
-## 开始使用
-
-### 安装依赖
+## 📦 安装
 
 ```bash
 npm install
 ```
 
-### 配置环境变量
-
-复制 `.env.local.example` 为 `.env.local` 并填写 API Key：
-
-```bash
-cp .env.local.example .env.local
-```
-
-编辑 `.env.local` 填写你的 API Key（可选）：
-
-```bash
-OPENAI_API_KEY=your_openai_api_key_here
-```
-
-### 启动开发服务器
+## 🚀 运行
 
 ```bash
 npm run dev
 ```
 
-在浏览器中打开 [http://localhost:3000](http://localhost:3000)。
+访问 [http://localhost:3000](http://localhost:3000)
 
-### 构建生产版本
-
-```bash
-npm run build
-npm run start
-```
-
-## 项目结构
+## 📁 项目结构
 
 ```
+tree-index/
 ├── app/                    # Next.js App Router
-│   ├── api/               # API Routes
-│   │   ├── ai/            # AI 相关接口
-│   │   └── upload/        # 图床上传代理
-│   └── actions/          # Server Actions
-├── components/           # React 组件
-│   ├── editor/          # 大纲编辑器
-│   ├── ai/              # AI 功能组件
-│   └── ui/              # 基础 UI 组件
-├── lib/                 # 核心逻辑
-│   ├── db.ts           # IndexedDB 封装
-│   ├── store.ts        # Zustand Store
-│   ├── ai.ts           # AI SDK 调用
-│   └── image.ts        # 图床上传
-├── types/              # TypeScript 类型
-└── utils/              # 工具函数
+│   ├── layout.tsx         # 根布局
+│   ├── page.tsx           # 主页面
+│   └── globals.css        # 全局样式
+├── components/            # React 组件
+│   └── editor/           # 编辑器组件
+│       ├── Header.tsx    # 顶部工具栏
+│       ├── Sidebar.tsx   # 侧边栏
+│       ├── OutlineTree.tsx   # 大纲树容器
+│       └── OutlineNode.tsx   # 递归节点组件
+├── lib/                   # 核心逻辑
+│   ├── store.ts          # Zustand 状态管理
+│   └── constants.ts      # 初始数据
+├── types/                 # TypeScript 类型定义
+│   └── index.ts
+└── utils/                 # 工具函数
+
 ```
 
-## 开发规范
+## 🎯 核心功能
 
-- 前端开发规范详见：[前端开发规范.md](./前端开发规范.md)
-- 后端开发规范详见：[后端开发规范.md](./后端开发规范.md)
-- 设计规格详见：[spec-draft.md](./spec-draft.md)
+### 1. 扁平化存储
 
-## 核心功能说明
+使用 `Record<string, StoredOutlineNode>` 扁平化存储所有节点，提升性能：
 
-### AI 智能重组
+```typescript
+interface StoredOutlineNode {
+  id: string;
+  parentId: string | null;
+  content: string;
+  children: string[];  // 存储 ID 数组
+  // ...
+}
+```
 
-通过 AI 自动分析你的大纲内容，识别主题并建立合理的层级分类关系。
+### 2. 性能优化
 
-**使用方式：**
-1. 点击工具栏的"✨ AI 整理"按钮
-2. AI 分析当前大纲结构
-3. 展示重组预览（并排对比）
-4. 确认后应用重组结果
+- 使用 `React.memo` 避免不必要的重渲染
+- Zustand Selector 精准订阅状态
+- 使用 `<input>` 而非 `contenteditable`
 
-### 图片插入
+### 3. UI 特性
 
-支持多种方式插入图片：
-- 菜单栏「添加图片」按钮
-- 快捷键 `Alt + Enter`（Mac: `Option + Enter`）
-- 直接拖拽图片到编辑器
-- 复制粘贴图片
+- **圆点指示器**：有子节点显示蓝色，无子节点显示灰色
+- **层级缩进**：通过 `border-left` 和 `padding-left` 实现
+- **标签高亮**：`#重点` 标签显示为蓝色背景
+- **斜体文本**：支持 `isItalic` 属性
 
-图片会上传到配置的图床服务，并显示缩略图，点击可查看原图。
+## 🎨 设计规范
 
-### 数据持久化
+遵循 `前端开发规范.md` 中的所有规范：
 
-- 所有文档自动保存到浏览器 IndexedDB
-- 支持导出为 JSON 文件备份
-- 支持导入 JSON 文件恢复数据
+- ✅ 所有交互组件使用 `'use client'`
+- ✅ 组件使用 PascalCase 命名
+- ✅ 使用 Zustand Selector 精准订阅
+- ✅ 使用 Tailwind CSS 工具类
+- ✅ TypeScript 严格模式
 
-## MVP 阶段限制
+## 📝 待实现功能
 
-- **不支持文件夹功能** - 所有文档平铺展示
-- **单设备使用** - 数据仅存储在本地浏览器
-- **图床需自行配置** - 支持第三方图床服务
+根据 `spec-draft.md` 规划：
 
-## 后续迭代计划
+- [ ] AI 智能重组
+- [ ] 图片上传（图床集成）
+- [ ] IndexedDB 本地存储
+- [ ] JSON 导入/导出
+- [ ] 撤销/重做
+- [ ] 快捷键支持
+- [ ] 搜索功能
 
-- V2: 文件夹管理、多设备同步
-- V3: 协作功能、云端存储
-- V4: 移动端适配
-
-## 许可证
+## 📄 许可证
 
 MIT
 
-## 贡献
+## 🙏 致谢
 
-欢迎提交 Issue 和 Pull Request！
-
----
-
-*本项目基于 Next.js 14 + TypeScript + Zustand + Dexie.js 构建*
+UI 设计灵感来源于 [幕布](https://mubu.com/)
