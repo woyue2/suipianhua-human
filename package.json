@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.26",
     "ai": "^3.0.0",
     "dexie": "^4.0.0",
     "immer": "^10.0.0",
