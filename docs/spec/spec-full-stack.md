@@ -1,0 +1,138 @@
+# AI智能大纲编辑器前后端需求文档
+## 1. 项目概述
+- **项目名称**：AI智能大纲编辑器  
+- **核心目标**：提供类似幕布的大纲笔记体验，支持AI自动重组大纲结构，实现“创建-编辑-AI整理-保存”的核心闭环。  
+- **技术栈**：Next.js 14+（App Router）、TypeScript、Zustand、Dexie.js、Vercel AI SDK、shadcn/ui、Tailwind CSS。  
+## 2. 功能模块需求（前后端分工）
+### 2.1 大纲编辑功能（核心功能）
+- **功能名称**：大纲编辑（增删改查+折叠/展开）  
+- **功能详情**：  
+  - **用户故事**：用户可创建、编辑、删除大纲节点，支持无限层级，通过箭头图标控制节点折叠/展开状态。  
+  - **功能描述**：  
+    - 节点编辑：点击节点内容触发文本编辑，支持实时更新（使用`<input>`而非`contenteditable`，避免光标管理问题）。  
+    - 节点操作：添加子节点、删除节点、调整层级（通过拖拽或按钮）。  
+    - 折叠/展开：点击箭头图标（▶/▼）控制节点展开状态，状态保存至本地存储。  
+  - **前端职责**：  
+    - 实现大纲树渲染（递归组件`OutlineNode.tsx`，使用`React.memo`优化性能）。  
+    - 通过Zustand Store管理节点状态（扁平化存储`nodes: Record<string, OutlineNode>`，提升查找性能）。  
+    - 处理节点交互（编辑、添加、删除、折叠），调用Store的`updateNodeContent`等action。  
+  - **后端职责**：  
+    - 提供**文档保存接口**（`POST /api/documents`），将文档数据存入IndexedDB（Dexie.js）。  
+    - 无需实时同步，前端自动保存后调用接口更新。  
+  - **技术实现要点**：  
+    - 前端：`useEditorStore`管理节点状态，`OutlineNode.tsx`递归渲染。  
+    - 后端：`app/api/documents/route.ts`处理保存请求，调用`documentDb.saveDocument`（封装Dexie操作）。  
+### 2.2 AI智能重组功能（核心亮点）
+- **功能名称**：AI智能重组  
+- **功能详情**：  
+  - **用户故事**：用户点击“AI整理”按钮，AI分析大纲内容，自动重组层级结构，用户确认后应用变更。  
+  - **功能描述**：  
+    - 触发重组：用户点击工具栏“AI整理”按钮，弹出预览模态框（`AIReorganizeModal.tsx`）。  
+    - AI处理：后端调用AI模型，生成重组计划（新结构+变更列表）。  
+    - 预览与确认：前端展示原始结构与重组后结构的对比，用户确认后应用变更。  
+  - **前端职责**：  
+    - 实现`AIReorganizeModal`，展示AI处理状态（Loading）、预览界面（`PlanPreview.tsx`）。  
+    - 调用后端AI接口（`POST /api/ai/reorganize`），传递当前大纲树（纯文本结构，避免泄露ID）。  
+    - 计算差异（`utils/tree-diff.ts`），展示变更列表（移动、重命名等），调用`applyReorganizePlan`更新Store。  
+  - **后端职责**：  
+    - 提供**AI重组接口**（`app/api/ai/reorganize/route.ts`）。  
+    - 调用Vercel AI SDK（`generateObject`），使用Zod Schema（`ai-schema.ts`）确保输出格式安全。  
+    - 处理AI请求，返回重组计划（`ReorganizePlan`类型：`reasoning`+`proposedStructure`+`changes`）。  
+  - **技术实现要点**：  
+    - 前端：`useEditorStore`的`applyReorganizePlan` action，`PlanPreview.tsx`展示对比。  
+    - 后端：`ai-schema.ts`定义Zod Schema，`reorganizeOutline`函数处理AI调用（Prompt需明确要求“只返回JSON结构”）。  
+### 2.3 图床上传功能（扩展功能）
+- **功能名称**：图床上传（支持多图床）  
+- **功能详情**：  
+  - **用户故事**：用户可在节点中插入图片，支持Imgur、SM.MS等图床，配置API Key后自动上传。  
+  - **功能描述**：  
+    - 图片插入：用户点击“添加图片”按钮，选择本地图片（支持拖拽/粘贴）。  
+    - 上传代理：前端将图片发送到后端`/api/upload`，后端代理到第三方图床。  
+    - 图片显示：上传成功后，图片插入到节点内容中，支持缩略图预览。  
+  - **前端职责**：  
+    - 实现`ImageUploader.tsx`，处理文件选择和上传状态（`uploading`/`error`）。  
+    - 调用后端上传接口，传递图片文件和图床配置（通过Header：`x-image-provider`/`x-image-api-key`）。  
+    - 将返回的图片URL存入节点`images`数组（`addImage` action）。  
+  - **后端职责**：  
+    - 提供**图床上传接口**（`app/api/upload/route.ts`）。  
+    - 从Header获取图床配置（provider、apiKey、customUrl），适配不同图床的表单字段（如Imgur用`image`，SM.MS用`smfile`）。  
+    - 统一错误处理格式（`{ success: boolean, error?: string }`），返回图片URL。  
+  - **技术实现要点**：  
+    - 前端：`FormData`上传，`fetch`调用`/api/upload`，处理响应。  
+    - 后端：`IMAGE_PROVIDERS`配置不同图床的上传逻辑，文件校验（类型/大小）。  
+### 2.4 数据持久化功能（基础功能）
+- **功能名称**：数据持久化（自动保存+手动保存+导入/导出）  
+- **功能详情**：  
+  - **用户故事**：用户编辑时自动保存，关闭页面前强制保存，支持JSON文件导入/导出。  
+  - **功能描述**：  
+    - 自动保存：编辑时防抖保存（500ms），状态指示（保存中/已保存/失败）。  
+    - 手动保存：工具栏“保存”按钮，强制保存当前文档。  
+    - 导入/导出：支持JSON文件导入（解析并加载到编辑器），导出当前文档为JSON。  
+  - **前端职责**：  
+    - 实现`useAutoSave` hook，监听文档变化并自动保存（`setInterval`+`beforeunload`强制保存）。  
+    - 实现`useDocumentIO` hook，处理导入/导出逻辑（`importFromFile`、`downloadJSON`）。  
+    - 工具栏显示保存状态（`SaveStatus`组件）。  
+  - **后端职责**：  
+    - 提供**文档保存接口**（`POST /api/documents`），调用`documentDb.saveDocument`（Dexie.js封装）。  
+    - 无需额外接口，前端直接调用保存逻辑。  
+  - **技术实现要点**：  
+    - 前端：`useEffect`监听文档变化，`toast`提示保存结果。  
+    - 后端：`documentDb`封装IndexedDB操作，`saveDocument`处理增删改。  
+### 2.5 工具栏与设置功能（交互功能）
+- **功能名称**：工具栏与设置  
+- **功能详情**：  
+  - **用户故事**：用户通过工具栏快速操作（导入/导出、AI整理、设置），通过设置界面配置AI和图床。  
+  - **功能描述**：  
+    - 工具栏：包含导入、导出、AI整理、设置按钮，显示保存状态。  
+    - 设置界面：配置AI提供商（Claude/OpenAI/Gemini）、图床（Imgur/SM.MS/自定义）、API Key。  
+    - 配置持久化：设置保存到IndexedDB（`configDb`）。  
+  - **前端职责**：  
+    - 实现`Toolbar.tsx`，处理按钮点击事件（导入/导出、AI整理、设置）。  
+    - 实现`SettingsModal.tsx`，管理配置状态（`useState`），保存配置到`configDb`。  
+    - 工具栏显示保存状态（`SaveStatus`）。  
+  - **后端职责**：  
+    - 提供**配置保存接口**（`POST /api/config`），调用`configDb.saveConfig`（Dexie.js封装）。  
+    - 无需额外接口，前端直接调用配置保存逻辑。  
+  - **技术实现要点**：  
+    - 前端：`useEditorStore`管理Modal状态（`showAIModal`、`showSettings`）。  
+    - 后端：`configDb`封装配置存储，`saveConfig`处理配置保存。  
+### 2.6 撤销/重做功能（体验功能）
+- **功能名称**：撤销/重做  
+- **功能详情**：  
+  - **用户故事**：用户误操作时可撤销，支持快捷键（Ctrl+Z/Ctrl+Y）。  
+  - **功能描述**：  
+    - 撤销/重做：记录文档历史快照（限制30步），清空未来历史。  
+    - 快捷键：Ctrl+Z 撤销，Ctrl+Y 重做，Ctrl+S 保存。  
+  - **前端职责**：  
+    - 实现`useAutoHistory` hook，监听文档变化并记录历史（`debounce`防抖）。  
+    - 实现`useKeyboardShortcuts` hook，监听快捷键并调用撤销/重做action。  
+    - 工具栏显示撤销/重做按钮（禁用状态控制）。  
+  - **后端职责**：  
+    - 无需后端参与，前端通过Store管理历史状态。  
+  - **技术实现要点**：  
+    - 前端：`history`状态（past/present/future），`pushHistory` action 记录快照。  
+### 2.7 JSON导入/导出功能（数据交互）
+- **功能名称**：JSON导入/导出  
+- **功能详情**：  
+  - **用户故事**：用户可导入已有大纲JSON文件，导出当前大纲为JSON。  
+  - **功能描述**：  
+    - 导入：选择JSON文件，解析并加载到编辑器（Zod校验格式）。  
+    - 导出：点击“导出”按钮，下载当前文档为JSON文件。  
+  - **前端职责**：  
+    - 实现`useDocumentIO` hook，处理文件选择（`<input type="file">`）和下载（`downloadJSON`）。  
+    - 调用`importFromFile`和`downloadJSON`工具函数。  
+  - **后端职责**：  
+    - 无需后端参与，前端直接处理文件读写。  
+  - **技术实现要点**：  
+    - 前端：`FileReader`读取文件，`URL.createObjectURL`下载文件，Zod校验JSON格式。  
+## 3. 非功能性需求
+- **性能**：大纲节点数≤1000时，编辑操作响应时间≤200ms；AI重组响应时间≤3s（GPT-4o-mini）。  
+- **安全性**：API Key不硬编码，通过环境变量管理；JSON导入需Zod校验，防止XSS。  
+- **兼容性**：支持Chrome、Firefox、Safari等现代浏览器。  
+- **可维护性**：代码遵循TypeScript规范，模块化设计（按功能分组），注释清晰。  
+## 4. 前后端协作要点
+- **接口规范**：所有API返回统一格式（`{ success: boolean, data?: any, error?: string }`），使用Zod校验请求参数。  
+- **状态管理**：前端通过Zustand Store订阅数据，后端通过Server Actions/Route Handlers更新数据。  
+- **错误处理**：前端捕获API错误并提示（`toast`），后端记录日志（`console.error`）。  
+- **迭代计划**：MVP阶段聚焦核心功能（大纲编辑+AI重组+自动保存），后续迭代扩展文件夹、搜索等功能。  
+本需求文档为项目开发提供明确方向，确保前后端分工清晰、功能一致，助力项目顺利交付。
