@@ -21,6 +21,13 @@ interface EditorStore {
   lastSavedAt: number | null;
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
 
+  // 历史栈
+  history: {
+    past: Document[];
+    present: Document | null;
+    future: Document[];
+  };
+
   // Actions - 直接通过 ID 操作，O(1) 复杂度
   updateNodeContent: (id: string, content: string) => void;
   toggleCollapse: (id: string) => void;
@@ -38,6 +45,15 @@ interface EditorStore {
 
   // 初始化
   initializeWithData: (nodes: Record<string, StoredOutlineNode>, rootId: string, title: string) => void;
+
+  // Undo/Redo Actions
+  undo: () => void;
+  redo: () => void;
+  pushHistory: (document: Document) => void;
+
+  // 辅助
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 export const useEditorStore = create<EditorStore>()(
@@ -52,6 +68,13 @@ export const useEditorStore = create<EditorStore>()(
     autoSaveEnabled: true,
     lastSavedAt: null,
     saveStatus: 'idle',
+    history: {
+      past: [],
+      present: null,
+      future: [],
+    },
+    canUndo: false,
+    canRedo: false,
 
     updateNodeContent: (id, content) => {
       set(state => {
@@ -180,6 +203,71 @@ export const useEditorStore = create<EditorStore>()(
         rootId,
         title,
         documentId: crypto.randomUUID(),
+      });
+    },
+
+    pushHistory: (document) => {
+      set(state => {
+        const MAX_HISTORY = 30;
+        const snapshot = JSON.parse(JSON.stringify(document));
+
+        if (state.history.present) {
+          state.history.past.push(state.history.present);
+        }
+
+        state.history.present = snapshot;
+        state.history.future = [];
+
+        if (state.history.past.length > MAX_HISTORY) {
+          state.history.past.shift();
+        }
+
+        state.canUndo = state.history.past.length > 0;
+        state.canRedo = false;
+      });
+    },
+
+    undo: () => {
+      set(state => {
+        const { past, present, future } = state.history;
+
+        if (past.length === 0 || !present) return;
+
+        const previous = past[past.length - 1];
+        const newPast = past.slice(0, past.length - 1);
+
+        state.history = {
+          past: newPast,
+          present: previous,
+          future: [present, ...future],
+        };
+
+        state.canUndo = newPast.length > 0;
+        state.canRedo = true;
+
+        get().loadDocument(previous);
+      });
+    },
+
+    redo: () => {
+      set(state => {
+        const { past, present, future } = state.history;
+
+        if (future.length === 0) return;
+
+        const next = future[0];
+        const newFuture = future.slice(1);
+
+        state.history = {
+          past: [...past, present!],
+          present: next,
+          future: newFuture,
+        };
+
+        state.canUndo = true;
+        state.canRedo = newFuture.length > 0;
+
+        get().loadDocument(next);
       });
     },
   }))
