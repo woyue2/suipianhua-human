@@ -1,41 +1,40 @@
 'use client';
 
-import React from 'react';
 import { useEditorStore } from '@/lib/store';
 import { OutlineNode } from './OutlineNode';
 
-export const OutlineTree: React.FC = () => {
-  const rootId = useEditorStore(s => s.rootId);
-  const nodes = useEditorStore(s => s.nodes);
-  const title = useEditorStore(s => s.title);
+export function OutlineTree() {
+  const rootId = useEditorStore((state) => state.rootId);
+  const nodes = useEditorStore((state) => state.nodes);
 
   if (!rootId || !nodes[rootId]) {
     return (
-      <div className="flex items-center justify-center h-full text-slate-400">
-        暂无内容
+      <div className="flex items-center justify-center h-64 text-gray-500">
+        暂无内容，请先创建文档
       </div>
     );
   }
 
-  const rootNode = nodes[rootId];
+  // Recursive render function
+  const renderNode = (nodeId: string, depth: number = 0) => {
+    const node = nodes[nodeId];
+    if (!node) return null;
+
+    return (
+      <div key={nodeId}>
+        <OutlineNode nodeId={nodeId} depth={depth} />
+        {node.children.length > 0 && !node.collapsed && (
+          <div>
+            {node.children.map((childId) => renderNode(childId, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-12 md:px-12 lg:px-24">
-      <header className="mb-12">
-        <h1 className="text-4xl font-bold flex items-center gap-4 group">
-          <span className="text-3xl">{rootNode.icon || '📚'}</span>
-          <span className="focus:outline-none">
-            {title}
-          </span>
-        </h1>
-      </header>
-      
-      <div className="space-y-6">
-        {rootNode.children.map(childId => (
-          <OutlineNode key={childId} nodeId={childId} depth={0} />
-        ))}
-      </div>
+    <div className="py-4">
+      {renderNode(rootId)}
     </div>
   );
-};
-
+}
