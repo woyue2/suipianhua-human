@@ -10,26 +10,32 @@ interface EditorStore {
   rootId: string;
   documentId: string;
   title: string;
-  
+
   // UI 状态
   showAIModal: boolean;
   showSettings: boolean;
   isDarkMode: boolean;
-  
+
+  // 自动保存状态
+  autoSaveEnabled: boolean;
+  lastSavedAt: number | null;
+  saveStatus: 'idle' | 'saving' | 'saved' | 'error';
+
   // Actions - 直接通过 ID 操作，O(1) 复杂度
   updateNodeContent: (id: string, content: string) => void;
   toggleCollapse: (id: string) => void;
   addImage: (nodeId: string, image: any) => void;
-  
+
   // UI Actions
   setShowAIModal: (show: boolean) => void;
   setShowSettings: (show: boolean) => void;
   toggleDarkMode: () => void;
-  
+
   // 辅助方法
   buildDocumentTree: () => Document;
   loadDocument: (document: Document) => void;
-  
+  saveDocument: () => Promise<void>;
+
   // 初始化
   initializeWithData: (nodes: Record<string, StoredOutlineNode>, rootId: string, title: string) => void;
 }
@@ -43,6 +49,9 @@ export const useEditorStore = create<EditorStore>()(
     showAIModal: false,
     showSettings: false,
     isDarkMode: false,
+    autoSaveEnabled: true,
+    lastSavedAt: null,
+    saveStatus: 'idle',
 
     updateNodeContent: (id, content) => {
       set(state => {
@@ -110,6 +119,34 @@ export const useEditorStore = create<EditorStore>()(
           version: '1.0.0',
         },
       };
+    },
+
+    saveDocument: async () => {
+      const state = get();
+      if (!state.autoSaveEnabled) return;
+
+      try {
+        set({ saveStatus: 'saving' });
+
+        const document = state.buildDocumentTree();
+
+        // 保存到 IndexedDB
+        const { documentDb } = await import('@/lib/db');
+        await documentDb.saveDocument(document);
+
+        set({
+          saveStatus: 'saved',
+          lastSavedAt: Date.now(),
+        });
+
+        // 2秒后重置状态
+        setTimeout(() => {
+          set({ saveStatus: 'idle' });
+        }, 2000);
+      } catch (error) {
+        console.error('Failed to save document:', error);
+        set({ saveStatus: 'error' });
+      }
     },
 
     loadDocument: (document: Document) => {
