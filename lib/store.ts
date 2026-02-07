@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { StoredOutlineNode, OutlineNode, Document } from '@/types';
+import { documentDb } from '@/lib/db';
 
 interface EditorStore {
   // 扁平化存储：所有节点平铺在字典中
@@ -32,10 +33,19 @@ interface EditorStore {
   documents: Array<{ id: string; title: string; updatedAt: number }>;
   isLoadingDocuments: boolean;
 
-  // Actions - 直接通过 ID 操作，O(1) 复杂度
+  // Actions - 基础操作
   updateNodeContent: (id: string, content: string) => void;
   toggleCollapse: (id: string) => void;
   addImage: (nodeId: string, image: any) => void;
+  
+  // 节点操作 Actions
+  addChildNode: (parentId: string) => string;
+  addSiblingNode: (nodeId: string) => string;
+  deleteNode: (nodeId: string) => void;
+  indentNode: (nodeId: string) => void;
+  outdentNode: (nodeId: string) => void;
+  moveNodeUp: (nodeId: string) => void;
+  moveNodeDown: (nodeId: string) => void;
 
   // UI Actions
   setShowAIModal: (show: boolean) => void;
@@ -108,6 +118,238 @@ export const useEditorStore = create<EditorStore>()(
       });
     },
 
+    // 添加子节点
+    addChildNode: (parentId) => {
+      const newId = crypto.randomUUID();
+      const now = Date.now();
+      
+      set(state => {
+        const parent = state.nodes[parentId];
+        if (!parent) return;
+
+        // 创建新节点
+        state.nodes[newId] = {
+          id: newId,
+          parentId: parentId,
+          content: '',
+          level: parent.level + 1,
+          children: [],
+          images: [],
+          collapsed: false,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        // 添加到父节点的 children
+        parent.children.push(newId);
+        parent.updatedAt = now;
+      });
+
+      console.log('➕ Added child node:', newId);
+      return newId;
+    },
+
+    // 添加兄弟节点
+    addSiblingNode: (nodeId) => {
+      const newId = crypto.randomUUID();
+      const now = Date.now();
+      
+      set(state => {
+        const node = state.nodes[nodeId];
+        if (!node || !node.parentId) return;
+
+        const parent = state.nodes[node.parentId];
+        if (!parent) return;
+
+        // 创建新节点
+        state.nodes[newId] = {
+          id: newId,
+          parentId: node.parentId,
+          content: '',
+          level: node.level,
+          children: [],
+          images: [],
+          collapsed: false,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        // 插入到当前节点后面
+        const index = parent.children.indexOf(nodeId);
+        parent.children.splice(index + 1, 0, newId);
+        parent.updatedAt = now;
+      });
+
+      console.log('➕ Added sibling node:', newId);
+      return newId;
+    },
+
+    // 删除节点
+    deleteNode: (nodeId) => {
+      set(state => {
+        const node = state.nodes[nodeId];
+        if (!node || !node.parentId) {
+          console.log('⚠️ Cannot delete root node');
+          return;
+        }
+
+        const parent = state.nodes[node.parentId];
+        if (!parent) return;
+
+        // 递归删除所有子节点
+        const deleteRecursive = (id: string) => {
+          const n = state.nodes[id];
+          if (!n) return;
+          
+          n.children.forEach(childId => deleteRecursive(childId));
+          delete state.nodes[id];
+        };
+
+        deleteRecursive(nodeId);
+
+        // 从父节点移除
+        parent.children = parent.children.filter(id => id !== nodeId);
+        parent.updatedAt = Date.now();
+      });
+
+      console.log('🗑️ Deleted node:', nodeId);
+    },
+
+    // 增加缩进（变成上一个兄弟节点的子节点）
+    indentNode: (nodeId) => {
+      set(state => {
+        const node = state.nodes[nodeId];
+        if (!node || !node.parentId) return;
+
+        const parent = state.nodes[node.parentId];
+        if (!parent) return;
+
+        const index = parent.children.indexOf(nodeId);
+        if (index <= 0) {
+          console.log('⚠️ Cannot indent: no previous sibling');
+          return;
+        }
+
+        // 获取上一个兄弟节点
+        const prevSiblingId = parent.children[index - 1];
+        const prevSibling = state.nodes[prevSiblingId];
+        if (!prevSibling) return;
+
+        // 从原父节点移除
+        parent.children.splice(index, 1);
+
+        // 添加到上一个兄弟节点的子节点
+        prevSibling.children.push(nodeId);
+        node.parentId = prevSiblingId;
+        node.level = prevSibling.level + 1;
+
+        // 递归更新所有子节点的 level
+        const updateLevel = (id: string, newLevel: number) => {
+          const n = state.nodes[id];
+          if (!n) return;
+          n.level = newLevel;
+          n.children.forEach(childId => updateLevel(childId, newLevel + 1));
+        };
+        updateLevel(nodeId, prevSibling.level + 1);
+
+        parent.updatedAt = Date.now();
+        prevSibling.updatedAt = Date.now();
+      });
+
+      console.log('→ Indented node:', nodeId);
+    },
+
+    // 减少缩进（变成父节点的兄弟节点）
+    outdentNode: (nodeId) => {
+      set(state => {
+        const node = state.nodes[nodeId];
+        if (!node || !node.parentId) return;
+
+        const parent = state.nodes[node.parentId];
+        if (!parent || !parent.parentId) {
+          console.log('⚠️ Cannot outdent: already at top level');
+          return;
+        }
+
+        const grandParent = state.nodes[parent.parentId];
+        if (!grandParent) return;
+
+        // 从原父节点移除
+        parent.children = parent.children.filter(id => id !== nodeId);
+
+        // 添加到祖父节点
+        const parentIndex = grandParent.children.indexOf(parent.id);
+        grandParent.children.splice(parentIndex + 1, 0, nodeId);
+        
+        node.parentId = parent.parentId;
+        node.level = parent.level;
+
+        // 递归更新所有子节点的 level
+        const updateLevel = (id: string, newLevel: number) => {
+          const n = state.nodes[id];
+          if (!n) return;
+          n.level = newLevel;
+          n.children.forEach(childId => updateLevel(childId, newLevel + 1));
+        };
+        updateLevel(nodeId, parent.level);
+
+        parent.updatedAt = Date.now();
+        grandParent.updatedAt = Date.now();
+      });
+
+      console.log('← Outdented node:', nodeId);
+    },
+
+    // 上移节点
+    moveNodeUp: (nodeId) => {
+      set(state => {
+        const node = state.nodes[nodeId];
+        if (!node || !node.parentId) return;
+
+        const parent = state.nodes[node.parentId];
+        if (!parent) return;
+
+        const index = parent.children.indexOf(nodeId);
+        if (index <= 0) {
+          console.log('⚠️ Cannot move up: already at top');
+          return;
+        }
+
+        // 交换位置
+        [parent.children[index - 1], parent.children[index]] = 
+        [parent.children[index], parent.children[index - 1]];
+
+        parent.updatedAt = Date.now();
+      });
+
+      console.log('↑ Moved node up:', nodeId);
+    },
+
+    // 下移节点
+    moveNodeDown: (nodeId) => {
+      set(state => {
+        const node = state.nodes[nodeId];
+        if (!node || !node.parentId) return;
+
+        const parent = state.nodes[node.parentId];
+        if (!parent) return;
+
+        const index = parent.children.indexOf(nodeId);
+        if (index >= parent.children.length - 1) {
+          console.log('⚠️ Cannot move down: already at bottom');
+          return;
+        }
+
+        // 交换位置
+        [parent.children[index], parent.children[index + 1]] = 
+        [parent.children[index + 1], parent.children[index]];
+
+        parent.updatedAt = Date.now();
+      });
+
+      console.log('↓ Moved node down:', nodeId);
+    },
+
     setShowAIModal: (show) => {
       set({ showAIModal: show });
     },
@@ -153,7 +395,6 @@ export const useEditorStore = create<EditorStore>()(
 
     saveDocument: async () => {
       const state = get();
-      if (!state.autoSaveEnabled) return;
 
       try {
         set({ saveStatus: 'saving' });
@@ -161,7 +402,6 @@ export const useEditorStore = create<EditorStore>()(
         const document = state.buildDocumentTree();
 
         // 保存到 IndexedDB
-        const { documentDb } = await import('@/lib/db');
         await documentDb.saveDocument(document);
 
         set({
@@ -169,12 +409,16 @@ export const useEditorStore = create<EditorStore>()(
           lastSavedAt: Date.now(),
         });
 
+        console.log('✅ Document saved successfully:', document.id);
+
         // 2秒后重置状态
         setTimeout(() => {
-          set({ saveStatus: 'idle' });
+          if (get().saveStatus === 'saved') {
+            set({ saveStatus: 'idle' });
+          }
         }, 2000);
       } catch (error) {
-        console.error('Failed to save document:', error);
+        console.error('❌ Failed to save document:', error);
         set({ saveStatus: 'error' });
       }
     },
@@ -202,6 +446,8 @@ export const useEditorStore = create<EditorStore>()(
         flattenNode(document.root, null);
         state.nodes = nodesMap;
       });
+
+      console.log('✅ Document loaded:', document.id);
     },
 
     initializeWithData: (nodes, rootId, title) => {
@@ -211,16 +457,17 @@ export const useEditorStore = create<EditorStore>()(
         title,
         documentId: crypto.randomUUID(),
       });
+      console.log('✅ Initialized with data:', title);
     },
 
     fetchDocuments: async () => {
       set({ isLoadingDocuments: true });
       try {
-        const { documentDb } = await import('@/lib/db');
         const docs = await documentDb.listDocuments();
         set({ documents: docs });
+        console.log('✅ Fetched documents:', docs.length);
       } catch (error) {
-        console.error('Failed to fetch documents:', error);
+        console.error('❌ Failed to fetch documents:', error);
       } finally {
         set({ isLoadingDocuments: false });
       }
@@ -248,48 +495,55 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     undo: () => {
-      set(state => {
-        const { past, present, future } = state.history;
+      const state = get();
+      const { past, present, future } = state.history;
 
-        if (past.length === 0 || !present) return;
+      if (past.length === 0 || !present) {
+        console.log('⚠️ Cannot undo: no history');
+        return;
+      }
 
-        const previous = past[past.length - 1];
-        const newPast = past.slice(0, past.length - 1);
+      const previous = past[past.length - 1];
+      const newPast = past.slice(0, past.length - 1);
 
-        state.history = {
+      set({
+        history: {
           past: newPast,
           present: previous,
           future: [present, ...future],
-        };
-
-        state.canUndo = newPast.length > 0;
-        state.canRedo = true;
-
-        get().loadDocument(previous);
+        },
+        canUndo: newPast.length > 0,
+        canRedo: true,
       });
+
+      get().loadDocument(previous);
+      console.log('↶ Undo performed');
     },
 
     redo: () => {
-      set(state => {
-        const { past, present, future } = state.history;
+      const state = get();
+      const { past, present, future } = state.history;
 
-        if (future.length === 0) return;
+      if (future.length === 0) {
+        console.log('⚠️ Cannot redo: no future');
+        return;
+      }
 
-        const next = future[0];
-        const newFuture = future.slice(1);
+      const next = future[0];
+      const newFuture = future.slice(1);
 
-        state.history = {
+      set({
+        history: {
           past: [...past, present!],
           present: next,
           future: newFuture,
-        };
-
-        state.canUndo = true;
-        state.canRedo = newFuture.length > 0;
-
-        get().loadDocument(next);
+        },
+        canUndo: true,
+        canRedo: newFuture.length > 0,
       });
+
+      get().loadDocument(next);
+      console.log('↷ Redo performed');
     },
   }))
 );
-
