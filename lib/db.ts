@@ -84,10 +84,18 @@ export const documentDb = {
 
   /**
    * 获取所有文档列表
+   * Returns array of { id, title, updatedAt } sorted by updatedAt descending
    */
-  async listDocuments(): Promise<DocumentRecord[]> {
+  async listDocuments(): Promise<Array<{ id: string; title: string; updatedAt: number }>> {
     try {
-      return await db.documents.toArray();
+      const docs = await db.documents.toArray();
+      return docs
+        .map(doc => ({
+          id: doc.id,
+          title: doc.title,
+          updatedAt: doc.updatedAt,
+        }))
+        .sort((a, b) => b.updatedAt - a.updatedAt);
     } catch (error) {
       console.error('Failed to list documents:', error);
       throw error;

@@ -19,8 +19,14 @@ export default function Home() {
   const setShowSettings = useEditorStore((state) => state.setShowSettings);
   const buildDocumentTree = useEditorStore((state) => state.buildDocumentTree);
   const loadDocument = useEditorStore((state) => state.loadDocument);
+  const fetchDocuments = useEditorStore((state) => state.fetchDocuments);
 
   const [importError, setImportError] = useState<string | null>(null);
+
+  // Load documents on mount
+  useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
 
   useEffect(() => {
     // Create test document with nested structure

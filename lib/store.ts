@@ -28,6 +28,10 @@ interface EditorStore {
     future: Document[];
   };
 
+  // Document list
+  documents: Array<{ id: string; title: string; updatedAt: number }>;
+  isLoadingDocuments: boolean;
+
   // Actions - 直接通过 ID 操作，O(1) 复杂度
   updateNodeContent: (id: string, content: string) => void;
   toggleCollapse: (id: string) => void;
@@ -42,6 +46,7 @@ interface EditorStore {
   buildDocumentTree: () => Document;
   loadDocument: (document: Document) => void;
   saveDocument: () => Promise<void>;
+  fetchDocuments: () => Promise<void>;
 
   // 初始化
   initializeWithData: (nodes: Record<string, StoredOutlineNode>, rootId: string, title: string) => void;
@@ -75,6 +80,8 @@ export const useEditorStore = create<EditorStore>()(
     },
     canUndo: false,
     canRedo: false,
+    documents: [],
+    isLoadingDocuments: false,
 
     updateNodeContent: (id, content) => {
       set(state => {
@@ -204,6 +211,19 @@ export const useEditorStore = create<EditorStore>()(
         title,
         documentId: crypto.randomUUID(),
       });
+    },
+
+    fetchDocuments: async () => {
+      set({ isLoadingDocuments: true });
+      try {
+        const { documentDb } = await import('@/lib/db');
+        const docs = await documentDb.listDocuments();
+        set({ documents: docs });
+      } catch (error) {
+        console.error('Failed to fetch documents:', error);
+      } finally {
+        set({ isLoadingDocuments: false });
+      }
     },
 
     pushHistory: (document) => {
