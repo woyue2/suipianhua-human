@@ -606,9 +606,10 @@ export const useEditorStore = create<EditorStore>()(
         const docs = url && key && userId
           ? await supabaseDocumentDb.listDocuments(userId)
           : await documentDb.listDocuments();
-        set({ documents: docs });
-        console.log('✅ Fetched documents:', docs.length);
-        return docs;
+        const filteredDocs = docs.filter(d => d.title !== '读书笔记《我们如何学习》');
+        set({ documents: filteredDocs });
+        console.log('✅ Fetched documents:', filteredDocs.length);
+        return filteredDocs;
       } catch (error) {
         console.error('❌ Failed to fetch documents:', error);
         return [];

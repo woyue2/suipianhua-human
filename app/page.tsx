@@ -6,15 +6,13 @@ import { Sidebar } from '@/components/editor/Sidebar';
 import { Header } from '@/components/editor/Header';
 import { OutlineTree } from '@/components/editor/OutlineTree';
 import { useEditorStore } from '@/lib/store';
-import { INITIAL_NODES, INITIAL_SIDEBAR_DATA } from '@/lib/constants';
+import { INITIAL_SIDEBAR_DATA } from '@/lib/constants';
 
 export default function Home() {
   const [isMobile, setIsMobile] = useState(false);
   const isDarkMode = useEditorStore(s => s.isDarkMode);
   const toggleDarkMode = useEditorStore(s => s.toggleDarkMode);
-  const initializeWithData = useEditorStore(s => s.initializeWithData);
   const fetchDocuments = useEditorStore(s => s.fetchDocuments);
-  const documents = useEditorStore(s => s.documents);
   const undo = useEditorStore(s => s.undo);
   const redo = useEditorStore(s => s.redo);
   const canUndo = useEditorStore(s => s.canUndo);
@@ -63,24 +61,7 @@ export default function Home() {
     };
     
     initApp();
-  }, []);
-
-  // 如果没有任何文档，创建初始示例文档
-  useEffect(() => {
-    const createInitialDocument = async () => {
-      // 只有在明确知道不是网络错误（通过 fetchDocuments 失败来判断不太准，这里暂时保留逻辑但加日志）
-      // 如果 isInitialized 为 true 且 documents 为空，说明确实没文档
-      // 但现在我们先禁用这个“自作主张”的逻辑，方便排查 Supabase 连接问题
-      if (!isInitialized || documents.length > 0) return;
-      
-      console.log('📝 No documents found. (Auto-creation disabled for debugging)');
-      // initializeWithData(INITIAL_NODES, 'root', '读书笔记《我们如何学习》');
-      // await saveDocument();
-      // await fetchDocuments();
-    };
-    
-    createInitialDocument();
-  }, [isInitialized, documents.length]);
+  }, [fetchDocuments, isInitialized]);
 
   // 处理暗黑模式
   useEffect(() => {
