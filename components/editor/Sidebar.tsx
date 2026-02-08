@@ -25,6 +25,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
   const [activeItemId, setActiveItemId] = useState('');
   const [appName, setAppName] = useState('改变思维，身体进步，是财富是永恒');
   const [isEditingName, setIsEditingName] = useState(false);
+  const [editingDocId, setEditingDocId] = useState<string | null>(null);
+  const [titleDraft, setTitleDraft] = useState('');
   const [trashedItems, setTrashedItems] = useState<SidebarItem[]>([]);
   const [showTrash, setShowTrash] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,6 +36,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
   const saveDocument = useEditorStore(s => s.saveDocument);
   const documents = useEditorStore(s => s.documents);
   const fetchDocuments = useEditorStore(s => s.fetchDocuments);
+  const setTitle = useEditorStore(s => s.setTitle);
+  const currentDocumentId = useEditorStore(s => s.documentId);
   const { user } = useAuth();
 
   // ✅ 从 IndexedDB 加载文档列表
@@ -287,6 +291,34 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
     }
   };
 
+  const handleRenameDocument = async (itemId: string, nextTitle: string) => {
+    const title = nextTitle.trim() || '未命名';
+    try {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      const document = (url && key && user?.id)
+        ? await supabaseDocumentDb.loadDocument(itemId)
+        : await documentDb.loadDocument(itemId);
+      if (!document) {
+        toast.error('文档加载失败：未找到文档');
+        return;
+      }
+      document.title = title;
+      if (url && key && user?.id) {
+        await supabaseDocumentDb.saveDocument(document, user.id);
+      } else {
+        await documentDb.saveDocument(document);
+      }
+      if (itemId === currentDocumentId) {
+        setTitle(title);
+      }
+      await fetchDocuments();
+    } catch (error) {
+      console.error('❌ Failed to rename document:', error);
+      toast.error('文档重命名失败');
+    }
+  };
+
   // 如果折叠，只显示展开按钮（所有 hooks 已经调用完毕，可以安全返回）
   if (isCollapsed) {
     return (
@@ -405,8 +437,41 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
                         <FileText size={16} className={item.id === activeItemId ? 'text-primary' : 'text-slate-400'} />
                       )}
                     </div>
-                    <span className="truncate flex-1">{item.title}</span>
+                    {editingDocId === item.id ? (
+                      <input
+                        value={titleDraft}
+                        onChange={(e) => setTitleDraft(e.target.value)}
+                        onBlur={async () => {
+                          setEditingDocId(null);
+                          await handleRenameDocument(item.id, titleDraft);
+                        }}
+                        onKeyDown={async (e) => {
+                          if (e.key === 'Enter') {
+                            setEditingDocId(null);
+                            await handleRenameDocument(item.id, titleDraft);
+                          }
+                          if (e.key === 'Escape') {
+                            setEditingDocId(null);
+                          }
+                        }}
+                        autoFocus
+                        className="truncate flex-1 bg-transparent border-b border-primary outline-none min-w-0"
+                      />
+                    ) : (
+                      <span className="truncate flex-1">{item.title}</span>
+                    )}
                     
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingDocId(item.id);
+                        setTitleDraft(item.title);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-opacity"
+                      title="重命名"
+                    >
+                      <Edit2 size={12} />
+                    </button>
                     <button
                       onClick={(e) => handleDeleteDocument(item.id, e)}
                       className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500 dark:text-red-400 transition-opacity"
