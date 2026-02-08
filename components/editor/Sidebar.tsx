@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { 
-  Search, Plus, FileText, 
-  Trash2, LayoutTemplate, X, Edit2, RotateCcw, ChevronLeft 
+import {
+  Search, Plus, FileText,
+  Trash2, LayoutTemplate, X, Edit2, RotateCcw, ChevronLeft
 } from 'lucide-react';
 import { SidebarItem } from '@/types';
 import { useEditorStore } from '@/lib/store';
+import { toast } from 'sonner';
 
 interface SidebarProps {
   items: SidebarItem[];
@@ -101,24 +102,42 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
   // 永久删除
   const handlePermanentDelete = (itemId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    
+
     const item = trashedItems.find(i => i.id === itemId);
     if (!item) return;
-    
-    if (confirm(`确定要永久删除文档"${item.title}"吗？此操作无法撤销！`)) {
-      setTrashedItems(prev => prev.filter(i => i.id !== itemId));
-      console.log('❌ Permanently deleted:', item.title);
-    }
+
+    toast(`确定要永久删除文档"${item.title}"吗？此操作无法撤销！`, {
+      action: {
+        label: '删除',
+        onClick: () => {
+          setTrashedItems(prev => prev.filter(i => i.id !== itemId));
+          console.log('❌ Permanently deleted:', item.title);
+        },
+      },
+      cancel: {
+        label: '取消',
+        onClick: () => {},
+      },
+    });
   };
 
   // 清空回收站
   const handleEmptyTrash = () => {
     if (trashedItems.length === 0) return;
-    
-    if (confirm(`确定要清空回收站吗？这将永久删除 ${trashedItems.length} 个文档，此操作无法撤销！`)) {
-      setTrashedItems([]);
-      console.log('🗑️ Trash emptied');
-    }
+
+    toast(`确定要清空回收站吗？这将永久删除 ${trashedItems.length} 个文档，此操作无法撤销！`, {
+      action: {
+        label: '清空',
+        onClick: () => {
+          setTrashedItems([]);
+          console.log('🗑️ Trash emptied');
+        },
+      },
+      cancel: {
+        label: '取消',
+        onClick: () => {},
+      },
+    });
   };
 
   // 编辑应用名称

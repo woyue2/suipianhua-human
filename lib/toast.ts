@@ -51,11 +51,8 @@ export async function toastPromise<T>(
     error: string;
   }
 ): Promise<T> {
-  return toast.promise(promise, {
-    loading: messages.loading,
-    success: messages.success,
-    error: messages.error,
-  });
+  const result = await toast.promise(promise, messages);
+  return result as T;
 }
 
 /**

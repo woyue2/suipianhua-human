@@ -28,7 +28,6 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
 
   // 使用全局工具栏状态，确保同一时间只有一个工具栏显示
   const activeToolbarNodeId = useEditorStore(s => s.activeToolbarNodeId);
-  const activeFormatToolbarNodeId = useEditorStore(s => s.activeFormatToolbarNodeId);
   const setActiveToolbarNodeId = useEditorStore(s => s.setActiveToolbarNodeId);
   const setActiveFormatToolbarNodeId = useEditorStore(s => s.setActiveFormatToolbarNodeId);
 
@@ -44,7 +43,6 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
     renderFormattedText,
     handleTextSelect,
     applyFormat,
-    setShowFormatToolbar,
   } = useNodeFormatting(nodeId);
 
   if (!node) return null;

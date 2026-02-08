@@ -5,6 +5,7 @@ import { Folder, Save, Upload, Download, Sparkles, Settings } from 'lucide-react
 import { useEditorStore } from '@/lib/store';
 import { AIReorganizeModal } from '@/components/ai/AIReorganizeModal';
 import { SettingsModal } from '@/components/ui/SettingsModal';
+import { toastExportError, toastImportError } from '@/lib/toast';
 
 export const Header: React.FC = () => {
   const saveDocument = useEditorStore(s => s.saveDocument);
@@ -46,7 +47,7 @@ export const Header: React.FC = () => {
       console.log('✅ Export completed');
     } catch (error) {
       console.error('❌ Export error:', error);
-      alert('导出失败');
+      toastExportError();
     }
   };
 
@@ -68,7 +69,7 @@ export const Header: React.FC = () => {
         console.log('✅ Import completed');
       } catch (error) {
         console.error('❌ Import error:', error);
-        alert('导入失败：文件格式不正确');
+        toastImportError();
       }
     };
     input.click();

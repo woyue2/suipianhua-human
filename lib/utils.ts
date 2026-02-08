@@ -10,8 +10,6 @@ export function sanitizeHTML(html: string): string {
     ALLOWED_TAGS: ['strong', 'em', 'mark', 'u', 'p', 'br', 'span'],
     // 允许的属性
     ALLOWED_ATTR: ['class'],
-    // 允许的 CSS 属性
-    ALLOWED_STYLE: [],
   });
 }
 

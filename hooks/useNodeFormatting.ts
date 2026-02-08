@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useEditorStore } from '@/lib/store';
+import { renderMarkdown } from '@/lib/utils';
 
 export function useNodeFormatting(nodeId: string) {
   const node = useEditorStore(s => s.nodes[nodeId]);
@@ -10,22 +11,9 @@ export function useNodeFormatting(nodeId: string) {
   const [showFormatToolbar, setShowFormatToolbar] = useState(false);
   const [formatToolbarPosition, setFormatToolbarPosition] = useState({ x: 0, y: 0 });
 
-  // Render formatted text with Markdown syntax
+  // Render formatted text with Markdown syntax using XSS protection
   const renderFormattedText = useMemo(() => {
-    if (!node?.content) return '';
-
-    let formatted = node.content;
-
-    // Highlight ==text== (process first to avoid italic interference)
-    formatted = formatted.replace(/==(.+?)==/g, '<mark class="bg-yellow-200 dark:bg-yellow-900/50 px-1 rounded">$1</mark>');
-
-    // Bold **text**
-    formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong class="font-bold">$1</strong>');
-
-    // Italic *text* (avoid matching **)
-    formatted = formatted.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em class="italic">$1</em>');
-
-    return formatted;
+    return renderMarkdown(node?.content || '');
   }, [node?.content]);
 
   // Handle text selection
