@@ -61,6 +61,7 @@ interface EditorStore {
   setShowSettings: (show: boolean) => void;
   toggleDarkMode: () => void;
   setLineSpacing: (spacing: LineSpacingType) => void;
+  setAutoSaveEnabled: (enabled: boolean) => void;
 
   // 辅助方法
   buildDocumentTree: () => Document;
@@ -404,6 +405,11 @@ export const useEditorStore = create<EditorStore>()(
     setLineSpacing: (spacing) => {
       set({ lineSpacing: spacing });
       console.log('📏 Line spacing changed to:', spacing);
+    },
+
+    setAutoSaveEnabled: (enabled) => {
+      set({ autoSaveEnabled: enabled });
+      console.log('💾 Auto save enabled changed to:', enabled);
     },
 
     setActiveToolbarNodeId: (nodeId) => {

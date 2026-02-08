@@ -126,6 +126,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
 
   // 切换文档 - ✅ 修复：从 IndexedDB 加载文档数据
   const handleSelectDocument = async (itemId: string) => {
+    // 如果当前有正在编辑的文档，先保存当前文档
+    if (activeItemId && activeItemId !== itemId) {
+      await saveDocument();
+      console.log('💾 Auto-saved current document before switching');
+    }
+
     try {
       // 从 IndexedDB 加载文档
       const document = await documentDb.loadDocument(itemId);

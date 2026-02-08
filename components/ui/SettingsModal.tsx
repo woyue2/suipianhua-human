@@ -9,13 +9,17 @@ interface SettingsModalProps {
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
   const autoSaveEnabled = useEditorStore(s => s.autoSaveEnabled);
+  const setAutoSaveEnabled = useEditorStore(s => s.setAutoSaveEnabled);
   const isDarkMode = useEditorStore(s => s.isDarkMode);
   const toggleDarkMode = useEditorStore(s => s.toggleDarkMode);
 
   const [localAutoSave, setLocalAutoSave] = useState(autoSaveEnabled);
 
   const handleSave = () => {
-    // 这里可以保存设置到 store
+    // 保存设置到 store
+    if (localAutoSave !== autoSaveEnabled) {
+      setAutoSaveEnabled(localAutoSave);
+    }
     onClose();
   };
 
@@ -101,7 +105,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
           </button>
           <button
             onClick={handleSave}
-            className="px-4 py-2 text-sm font-medium text-white bg-primary border border-transparent rounded-md hover:bg-blue-700 transition-colors"
+            className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 transition-colors"
           >
             保存
           </button>
