@@ -248,6 +248,24 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onMouseMove={handleMouseMove}
+        onTouchStart={() => {
+          if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+          }
+          hoverTimeoutRef.current = setTimeout(() => {
+            const rect = nodeRef.current?.getBoundingClientRect();
+            if (!rect) return;
+            const x = rect.left + rect.width / 2;
+            const y = rect.top + rect.height / 2;
+            showOperationToolbar(x, y);
+          }, 500);
+        }}
+        onTouchEnd={() => {
+          if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+            hoverTimeoutRef.current = null;
+          }
+        }}
         className="group flex items-start gap-2 sm:gap-3 relative hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded px-2 py-2 sm:py-1 transition-colors active:bg-slate-100 dark:active:bg-slate-800/50"
       >
         <div

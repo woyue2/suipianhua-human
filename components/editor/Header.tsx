@@ -23,8 +23,10 @@ export const Header = React.memo(({ toggleSidebar }: HeaderProps) => {
   const canUndo = useEditorStore(s => s.canUndo);
   const canRedo = useEditorStore(s => s.canRedo);
 
-  const [showAIModal, setShowAIModal] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const showAIModal = useEditorStore(s => s.showAIModal);
+  const setShowAIModal = useEditorStore(s => s.setShowAIModal);
+  const showSettings = useEditorStore(s => s.showSettings);
+  const setShowSettings = useEditorStore(s => s.setShowSettings);
 
   const handleSave = async () => {
     console.log('💾 Save button clicked');

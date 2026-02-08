@@ -148,6 +148,36 @@ export default function Home() {
         </div>
       </main>
 
+      {isMobile && (
+        <div className="fixed bottom-0 left-0 right-0 h-16 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex items-center justify-around z-40">
+          <button
+            onClick={() => saveDocument()}
+            className="flex flex-col items-center gap-1 text-slate-700 dark:text-slate-300"
+          >
+            <span className="text-sm">保存</span>
+          </button>
+          <button
+            onClick={() => undo()}
+            disabled={!canUndo}
+            className="flex flex-col items-center gap-1 text-slate-700 dark:text-slate-300 disabled:opacity-30"
+          >
+            <span className="text-sm">撤销</span>
+          </button>
+          <button
+            onClick={() => redo()}
+            disabled={!canRedo}
+            className="flex flex-col items-center gap-1 text-slate-700 dark:text-slate-300 disabled:opacity-30"
+          >
+            <span className="text-sm">重做</span>
+          </button>
+          <button
+            onClick={() => useEditorStore.getState().setShowAIModal(true)}
+            className="flex flex-col items-center gap-1 text-primary"
+          >
+            <span className="text-sm">AI</span>
+          </button>
+        </div>
+      )}
       <button 
         onClick={handleDarkModeToggle}
         className="fixed bottom-6 right-6 w-12 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl rounded-full flex items-center justify-center text-slate-600 dark:text-slate-300 transition-all hover:scale-110 active:scale-95 z-50"
