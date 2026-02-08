@@ -8,6 +8,8 @@ import {
 import { SidebarItem } from '@/types';
 import { useEditorStore } from '@/lib/store';
 import { documentDb } from '@/lib/db';
+import { supabaseDocumentDb } from '@/lib/supabase-db';
+import { useAuth } from '@/app/auth/AuthProvider';
 import { toast } from 'sonner';
 
 interface SidebarProps {
@@ -32,6 +34,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
   const saveDocument = useEditorStore(s => s.saveDocument);
   const documents = useEditorStore(s => s.documents);
   const fetchDocuments = useEditorStore(s => s.fetchDocuments);
+  const { user } = useAuth();
 
   // ✅ 从 IndexedDB 加载文档列表
   useEffect(() => {
@@ -133,8 +136,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
     }
 
     try {
-      // 从 IndexedDB 加载文档
-      const document = await documentDb.loadDocument(itemId);
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      const document = (url && key && user?.id)
+        ? await supabaseDocumentDb.loadDocument(itemId)
+        : await documentDb.loadDocument(itemId);
       
       if (!document) {
         toast.error('文档加载失败：未找到文档');
@@ -204,8 +210,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
         label: '删除',
         onClick: async () => {
           try {
-            // 从 IndexedDB 删除
-            await documentDb.deleteDocument(itemId);
+            const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+            const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+            if (url && key && user?.id) {
+              await supabaseDocumentDb.deleteDocument(itemId, user.id);
+              await fetchDocuments();
+            } else {
+              await documentDb.deleteDocument(itemId);
+            }
             setTrashedItems(prev => prev.filter(i => i.id !== itemId));
             console.log('❌ Permanently deleted:', item.title);
             toast.success('文档已永久删除');
@@ -231,13 +243,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
         label: '清空',
         onClick: async () => {
           try {
-            // 从 IndexedDB 删除所有回收站文档
-            await Promise.all(
-              trashedItems.map(item => documentDb.deleteDocument(item.id))
-            );
+            const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+            const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+            if (url && key && user?.id) {
+              await supabaseDocumentDb.deleteDocuments(
+                trashedItems.map(item => item.id),
+                user.id
+              );
+              await fetchDocuments();
+            } else {
+              await Promise.all(
+                trashedItems.map(item => documentDb.deleteDocument(item.id))
+              );
+            }
             setTrashedItems([]);
             console.log('🗑️ Trash emptied');
-            toast.success('回收站已清空');
+            toast.success('回收站已清空（已永久删除）');
           } catch (error) {
             console.error('❌ Failed to empty trash:', error);
             toast.error('清空失败');
@@ -414,7 +435,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
               
               {trashedItems.length === 0 ? (
                 <div className="px-3 py-8 text-center text-slate-400 text-xs">
-                  回收站为空
+                  回收站为空（无可删除文档）
                 </div>
               ) : (
                 trashedItems.map(item => (

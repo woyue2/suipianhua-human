@@ -5,6 +5,8 @@ import { immer } from 'zustand/middleware/immer';
 import { StoredOutlineNode, OutlineNode, Document } from '@/types';
 import { LineSpacingType, DEFAULTS } from '@/lib/constants';
 import { documentDb } from '@/lib/db';
+import { supabaseDocumentDb } from '@/lib/supabase-db';
+import { getCurrentUserId } from '@/lib/auth-context';
 
 interface HistoryState {
   nodes: Record<string, StoredOutlineNode>;
@@ -486,8 +488,14 @@ export const useEditorStore = create<EditorStore>()(
 
         const document = state.buildDocumentTree();
 
-        // 保存到 IndexedDB
-        await documentDb.saveDocument(document);
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        const userId = getCurrentUserId();
+        if (url && key && userId) {
+          await supabaseDocumentDb.saveDocument(document, userId);
+        } else {
+          await documentDb.saveDocument(document);
+        }
 
         set({
           saveStatus: 'saved',
@@ -592,7 +600,12 @@ export const useEditorStore = create<EditorStore>()(
     fetchDocuments: async () => {
       set({ isLoadingDocuments: true });
       try {
-        const docs = await documentDb.listDocuments();
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        const userId = getCurrentUserId();
+        const docs = url && key && userId
+          ? await supabaseDocumentDb.listDocuments(userId)
+          : await documentDb.listDocuments();
         set({ documents: docs });
         console.log('✅ Fetched documents:', docs.length);
         return docs;

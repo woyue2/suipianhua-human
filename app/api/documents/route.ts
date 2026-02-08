@@ -5,6 +5,7 @@ import {
   createSuccessResponse,
 } from '@/lib/api-utils';
 import { DocumentQuerySchema } from '@/lib/validation';
+import { supabaseDocumentDb } from '@/lib/supabase-db';
 
 /**
  * GET /api/documents
@@ -32,8 +33,28 @@ export async function GET(req: NextRequest) {
     // 解析并验证查询参数
     const query = parseAndValidateQuery(req, DocumentQuerySchema);
 
-    // MVP: 返回空数组（IndexedDB 仅在浏览器端可用）
-    // 客户端应直接使用 documentDb.listDocuments()
+    // 如果配置了 Supabase，则从服务端返回文档列表
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      try {
+        const documents = await supabaseDocumentDb.listDocuments();
+        return createSuccessResponse({
+          documents,
+          total: documents.length,
+          query,
+          message: '来自 Supabase 的文档列表',
+        });
+      } catch (e: unknown) {
+        // Supabase 查询失败时，返回占位信息并提示原因
+        return createSuccessResponse({
+          documents: [],
+          total: 0,
+          query,
+          message: `Supabase 查询失败: ${e instanceof Error ? e.message : '未知错误'}`,
+        });
+      }
+    }
+
+    // 未配置 Supabase：返回占位信息，提示使用客户端 IndexedDB
     return createSuccessResponse({
       documents: [],
       total: 0,
@@ -52,7 +73,7 @@ export async function GET(req: NextRequest) {
  *
  * MVP 阶段不实现，文档创建在客户端完成
  */
-export async function POST(req: NextRequest) {
+export async function POST() {
   try {
     return createSuccessResponse(
       {

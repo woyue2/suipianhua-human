@@ -31,6 +31,9 @@
 在 Supabase Dashboard → SQL Editor 中执行：
 
 ```sql
+-- 启用需要的扩展（用于 gen_random_uuid）
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- 创建文档表
 CREATE TABLE documents (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -98,6 +101,18 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=你的anon key
 
 # 在 Supabase Dashboard → Settings → API 中找到这两个值
 ```
+
+### 第 4.1 步：启用 GitHub 登录（可选，推荐）
+
+1. 在 Supabase 控制台 → Authentication → Providers，启用 GitHub
+2. 在 GitHub 开发者设置创建 OAuth App：
+   - Homepage URL: http://localhost:3000
+   - Authorization callback URL: https://你的项目ref.supabase.co/auth/v1/callback
+3. 将 Client ID/Secret 填入 Supabase 的 GitHub Provider 设置并保存
+4. 在 Supabase 控制台 → Authentication → Settings：
+   - Site URL: http://localhost:3000
+   - Additional Redirect URLs: http://localhost:3000
+5. 在应用登录页点击“使用 GitHub 登录”完成授权
 
 ### 第 5 步：创建 Supabase 客户端
 
@@ -529,4 +544,3 @@ A: 网络请求会有延迟（50-200ms），但可以用乐观更新优化。
 迁移时间：约 2-4 小时
 
 现在不着急迁移，等需要多设备同步时再迁移即可！🚀
-

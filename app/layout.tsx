@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import { Toaster } from 'sonner'
+import AuthProvider from './auth/AuthProvider'
+import RequireAuth from './auth/RequireAuth'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -18,10 +20,11 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body className={inter.className}>
-        {children}
+        <AuthProvider>
+          <RequireAuth>{children}</RequireAuth>
+        </AuthProvider>
         <Toaster position="top-center" richColors />
       </body>
     </html>
   )
 }
-

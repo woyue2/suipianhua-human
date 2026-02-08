@@ -23,6 +23,9 @@ export default function Home() {
   
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
   useEffect(() => {
     const updateIsMobile = () => {
@@ -31,6 +34,19 @@ export default function Home() {
     updateIsMobile();
     window.addEventListener('resize', updateIsMobile);
     return () => window.removeEventListener('resize', updateIsMobile);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('visualViewport' in window)) return;
+    const vv = window.visualViewport!;
+    const handleResize = () => {
+      const kh = window.innerHeight - vv.height;
+      const open = kh > 150;
+      setKeyboardHeight(kh);
+      setIsKeyboardOpen(open);
+    };
+    vv.addEventListener('resize', handleResize);
+    return () => vv.removeEventListener('resize', handleResize);
   }, []);
 
   // 初始化数据
@@ -121,11 +137,41 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-white dark:bg-background-dark text-slate-800 dark:text-slate-200">
+    <div
+      className="flex h-screen w-screen overflow-hidden bg-white dark:bg-background-dark text-slate-800 dark:text-slate-200"
+      onTouchStart={(e) => {
+        const x = e.touches[0]?.clientX ?? 0;
+        setTouchStartX(x);
+      }}
+      onTouchEnd={(e) => {
+        const endX = e.changedTouches[0]?.clientX ?? 0;
+        if (touchStartX !== null) {
+          const deltaX = endX - touchStartX;
+          if (isMobile && isSidebarCollapsed && touchStartX < 24 && deltaX > 30) {
+            setIsSidebarCollapsed(false);
+          }
+        }
+        setTouchStartX(null);
+      }}
+    >
       {/* 移动端遮罩层：侧边栏展开时显示，用于点击关闭 */}
       {isMobile && !isSidebarCollapsed && (
         <div
           className="fixed inset-0 bg-black/50 z-40"
+          onTouchStart={(e) => {
+            const x = e.touches[0]?.clientX ?? 0;
+            setTouchStartX(x);
+          }}
+          onTouchEnd={(e) => {
+            const endX = e.changedTouches[0]?.clientX ?? 0;
+            if (touchStartX !== null) {
+              const deltaX = touchStartX - endX;
+              if (deltaX > 30) {
+                setIsSidebarCollapsed(true);
+              }
+            }
+            setTouchStartX(null);
+          }}
           onClick={() => setIsSidebarCollapsed(true)}
         />
       )}
@@ -149,7 +195,10 @@ export default function Home() {
       </main>
 
       {isMobile && (
-        <div className="fixed bottom-0 left-0 right-0 h-16 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex items-center justify-around z-40">
+        <div
+          className="fixed bottom-0 left-0 right-0 h-16 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex items-center justify-around z-40 safe-area-inset-bottom transition-transform duration-300"
+          style={{ transform: isKeyboardOpen ? `translateY(-${keyboardHeight}px)` : 'none' }}
+        >
           <button
             onClick={() => saveDocument()}
             className="flex flex-col items-center gap-1 text-slate-700 dark:text-slate-300"
