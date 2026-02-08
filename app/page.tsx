@@ -13,6 +13,7 @@ export default function Home() {
   const toggleDarkMode = useEditorStore(s => s.toggleDarkMode);
   const initializeWithData = useEditorStore(s => s.initializeWithData);
   const fetchDocuments = useEditorStore(s => s.fetchDocuments);
+  const documents = useEditorStore(s => s.documents);
   const undo = useEditorStore(s => s.undo);
   const redo = useEditorStore(s => s.redo);
   const canUndo = useEditorStore(s => s.canUndo);
@@ -20,14 +21,41 @@ export default function Home() {
   const saveDocument = useEditorStore(s => s.saveDocument);
   
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // 初始化数据
   useEffect(() => {
-    console.log('🚀 Initializing app...');
-    initializeWithData(INITIAL_NODES, 'root', '读书笔记《我们如何学习》');
-    // 加载文档列表
-    fetchDocuments();
-  }, [initializeWithData, fetchDocuments]);
+    const initApp = async () => {
+      if (isInitialized) return;
+      
+      console.log('🚀 Initializing app...');
+      
+      // 先加载文档列表
+      await fetchDocuments();
+      
+      setIsInitialized(true);
+    };
+    
+    initApp();
+  }, []);
+
+  // 如果没有任何文档，创建初始示例文档
+  useEffect(() => {
+    const createInitialDocument = async () => {
+      if (!isInitialized || documents.length > 0) return;
+      
+      console.log('📝 No documents found, creating initial document...');
+      initializeWithData(INITIAL_NODES, 'root', '读书笔记《我们如何学习》');
+      
+      // 保存初始文档到 IndexedDB
+      await saveDocument();
+      
+      // 重新加载文档列表
+      await fetchDocuments();
+    };
+    
+    createInitialDocument();
+  }, [isInitialized, documents.length]);
 
   // 处理暗黑模式
   useEffect(() => {

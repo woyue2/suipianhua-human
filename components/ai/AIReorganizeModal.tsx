@@ -26,8 +26,10 @@ export const AIReorganizeModal: React.FC<AIReorganizeModalProps> = ({ onClose })
   const [provider, setProvider] = useState<AIProvider>(getDefaultProvider());
   const [model, setModel] = useState(() => getDefaultModel(provider));
 
+  // ✅ 在组件顶层调用所有 hooks
   const buildDocumentTree = useEditorStore(s => s.buildDocumentTree);
   const loadDocument = useEditorStore(s => s.loadDocument);
+  const saveDocument = useEditorStore(s => s.saveDocument);
 
   // 当提供商改变时，更新默认模型
   useEffect(() => {
@@ -80,8 +82,7 @@ export const AIReorganizeModal: React.FC<AIReorganizeModalProps> = ({ onClose })
 
     loadDocument(newDoc);
 
-    // ✅ 自动保存到IndexedDB
-    const saveDocument = useEditorStore(s => s.saveDocument);
+    // ✅ 自动保存到IndexedDB - 直接使用顶层获取的 saveDocument
     await saveDocument();
 
     toast.success('AI重组已保存');

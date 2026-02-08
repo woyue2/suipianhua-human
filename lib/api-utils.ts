@@ -101,7 +101,9 @@ export function parseAndValidateHeaders<T>(
   const config: Record<string, any> = {};
 
   for (const [key, headerName] of Object.entries(headerMapping)) {
-    config[key] = headers.get(headerName);
+    const value = headers.get(headerName);
+    // 将 null 转换为 undefined，以便 Zod 的 .optional() 能正常工作
+    config[key] = value === null ? undefined : value;
   }
 
   return schema.parse(config);

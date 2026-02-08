@@ -65,7 +65,7 @@ interface EditorStore {
   buildDocumentTree: () => Document;
   loadDocument: (document: Document) => void;
   saveDocument: () => Promise<void>;
-  fetchDocuments: () => Promise<void>;
+  fetchDocuments: () => Promise<Array<{ id: string; title: string; updatedAt: number }>>;
 
   // 初始化
   initializeWithData: (nodes: Record<string, StoredOutlineNode>, rootId: string, title: string) => void;
@@ -136,7 +136,9 @@ export const useEditorStore = create<EditorStore>()(
     addImage: (nodeId, image) => {
       set(state => {
         if (state.nodes[nodeId]) {
+          // immer 会自动处理不可变性
           state.nodes[nodeId].images.push(image);
+          state.nodes[nodeId].updatedAt = Date.now();
         }
       });
     },
@@ -513,8 +515,10 @@ export const useEditorStore = create<EditorStore>()(
         const docs = await documentDb.listDocuments();
         set({ documents: docs });
         console.log('✅ Fetched documents:', docs.length);
+        return docs;
       } catch (error) {
         console.error('❌ Failed to fetch documents:', error);
+        return [];
       } finally {
         set({ isLoadingDocuments: false });
       }

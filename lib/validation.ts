@@ -20,7 +20,7 @@ export type ApiResponse<T = any> = {
 // 图床上传配置 Schema
 export const ImageUploadConfigSchema = z.object({
   provider: z.enum(['imgur', 'smms', 'custom']),
-  apiKey: z.string().min(1, 'API Key 不能为空'),
+  apiKey: z.string().min(1, 'API Key 不能为空').optional(), // 允许为空，服务端可使用环境变量
   customUrl: z.string().url('自定义 URL 格式不正确').optional(),
 });
 

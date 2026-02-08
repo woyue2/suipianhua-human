@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
 import {
   handleApiError,
-  parseAndValidateHeaders,
   validateFileUpload,
   createSuccessResponse,
   ApiError,
@@ -17,16 +16,28 @@ import { IMAGE_PROVIDERS } from '@/lib/image-upload';
  */
 export async function POST(req: NextRequest) {
   try {
-    // 1. 解析并验证请求头配置
-    const config = parseAndValidateHeaders(
-      req,
-      ImageUploadConfigSchema,
-      {
-        provider: 'x-image-provider',
-        apiKey: 'x-image-api-key',
-        customUrl: 'x-image-custom-url',
+    // 1. 解析请求头配置（允许使用环境变量作为后备）
+    const provider = req.headers.get('x-image-provider') || 'imgur';
+    let apiKey = req.headers.get('x-image-api-key');
+    const customUrl = req.headers.get('x-image-custom-url') || undefined;
+
+    // 如果前端没有提供 API Key，使用环境变量作为后备
+    if (!apiKey) {
+      if (provider === 'imgur') {
+        apiKey = process.env.IMGUR_API_KEY || '';
+      } else if (provider === 'smms') {
+        apiKey = process.env.SM_MS_API_KEY || '';
       }
-    );
+    }
+
+    const config = {
+      provider: provider as 'imgur' | 'smms' | 'custom',
+      apiKey: apiKey || undefined,
+      customUrl,
+    };
+
+    // 验证配置
+    const validatedConfig = ImageUploadConfigSchema.parse(config);
 
     // 2. 获取上传文件
     const formData = await req.formData();
@@ -47,7 +58,7 @@ export async function POST(req: NextRequest) {
 
     const uploadUrl =
       typeof providerInfo.uploadUrl === 'function'
-        ? providerInfo.uploadUrl(config)
+        ? providerInfo.uploadUrl(validatedConfig)
         : providerInfo.uploadUrl;
 
     // 5. 构建上传请求
@@ -57,7 +68,7 @@ export async function POST(req: NextRequest) {
     // 6. 上传到图床
     const upstreamRes = await fetch(uploadUrl, {
       method: 'POST',
-      headers: providerInfo.headers(config),
+      headers: providerInfo.headers(validatedConfig),
       body: upstreamFormData,
     });
 

@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search, Plus, FileText,
   Trash2, LayoutTemplate, X, Edit2, RotateCcw, ChevronLeft
 } from 'lucide-react';
 import { SidebarItem } from '@/types';
 import { useEditorStore } from '@/lib/store';
+import { documentDb } from '@/lib/db';
 import { toast } from 'sonner';
 
 interface SidebarProps {
@@ -18,16 +19,46 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCollapse }) => {
   // 所有 hooks 必须在任何条件返回之前调用
   const [searchQuery, setSearchQuery] = useState('');
-  const [localItems, setLocalItems] = useState(items);
-  const [activeItemId, setActiveItemId] = useState(items.find(i => i.isActive)?.id || items[0]?.id);
+  const [localItems, setLocalItems] = useState<SidebarItem[]>([]);
+  const [activeItemId, setActiveItemId] = useState('');
   const [appName, setAppName] = useState('爱学习幕小布');
   const [isEditingName, setIsEditingName] = useState(false);
   const [trashedItems, setTrashedItems] = useState<SidebarItem[]>([]);
   const [showTrash, setShowTrash] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   
   const initializeWithData = useEditorStore(s => s.initializeWithData);
-  const nodes = useEditorStore(s => s.nodes);
-  const rootId = useEditorStore(s => s.rootId);
+  const loadDocument = useEditorStore(s => s.loadDocument);
+  const saveDocument = useEditorStore(s => s.saveDocument);
+  const documents = useEditorStore(s => s.documents);
+  const fetchDocuments = useEditorStore(s => s.fetchDocuments);
+
+  // ✅ 从 IndexedDB 加载文档列表
+  useEffect(() => {
+    const loadDocumentList = async () => {
+      setIsLoading(true);
+      await fetchDocuments();
+      setIsLoading(false);
+    };
+    loadDocumentList();
+  }, [fetchDocuments]);
+
+  // ✅ 将 store 中的 documents 转换为 SidebarItem 格式
+  useEffect(() => {
+    const items: SidebarItem[] = documents.map(doc => ({
+      id: doc.id,
+      title: doc.title,
+      emoji: '📄',
+      isActive: false,
+    }));
+    setLocalItems(items);
+    
+    // 如果还没有选中的文档且有文档列表，自动选中第一个
+    if (!activeItemId && items.length > 0) {
+      setActiveItemId(items[0].id);
+      handleSelectDocument(items[0].id);
+    }
+  }, [documents]);
 
   // 搜索过滤
   const filteredItems = useMemo(() => {
@@ -40,30 +71,86 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
   }, [localItems, searchQuery]);
 
   // 新建文档
-  const handleCreateDocument = () => {
+  const handleCreateDocument = async () => {
     const newId = crypto.randomUUID();
+    const rootNodeId = crypto.randomUUID();
+    const firstChildId = crypto.randomUUID();
+    const now = Date.now();
     
-    const newItem: SidebarItem = {
-      id: newId,
-      title: '新建文档',
-      emoji: '📄',
-      isActive: false,
+    // 创建新文档的初始节点结构（包含根节点和第一个可编辑的子节点）
+    const initialNodes = {
+      [rootNodeId]: {
+        id: rootNodeId,
+        parentId: null,
+        content: '',
+        level: 0,
+        children: [firstChildId],
+        images: [],
+        collapsed: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+      [firstChildId]: {
+        id: firstChildId,
+        parentId: rootNodeId,
+        content: '',
+        level: 1,
+        children: [],
+        images: [],
+        collapsed: false,
+        createdAt: now,
+        updatedAt: now,
+      }
     };
-
-    setLocalItems(prev => [newItem, ...prev]);
-    console.log('📄 Created new document:', newItem.title);
+    
+    // 初始化新文档的数据结构
+    initializeWithData(initialNodes, rootNodeId, '新建文档');
+    
+    // 保存到 IndexedDB
+    try {
+      await saveDocument();
+      console.log('✅ New document saved to IndexedDB');
+      
+      // 重新加载文档列表
+      await fetchDocuments();
+      
+      // 自动切换到新文档
+      setActiveItemId(newId);
+      
+      console.log('📄 Created new document with first editable node: 新建文档');
+    } catch (error) {
+      console.error('❌ Failed to save new document:', error);
+      toast.error('创建文档失败');
+    }
   };
 
-  // 切换文档
-  const handleSelectDocument = (itemId: string) => {
-    setActiveItemId(itemId);
-    setLocalItems(prev => prev.map(item => ({
-      ...item,
-      isActive: item.id === itemId
-    })));
-    
-    const selectedItem = localItems.find(i => i.id === itemId);
-    console.log('📂 Switched to document:', selectedItem?.title);
+  // 切换文档 - ✅ 修复：从 IndexedDB 加载文档数据
+  const handleSelectDocument = async (itemId: string) => {
+    try {
+      // 从 IndexedDB 加载文档
+      const document = await documentDb.loadDocument(itemId);
+      
+      if (!document) {
+        toast.error('文档加载失败：未找到文档');
+        console.error('❌ Document not found:', itemId);
+        return;
+      }
+
+      // 加载文档到编辑器
+      loadDocument(document);
+      
+      // 更新 UI 状态
+      setActiveItemId(itemId);
+      setLocalItems(prev => prev.map(item => ({
+        ...item,
+        isActive: item.id === itemId
+      })));
+      
+      console.log('✅ Loaded document:', document.title);
+    } catch (error) {
+      console.error('❌ Failed to load document:', error);
+      toast.error('文档加载失败');
+    }
   };
 
   // 删除文档（移到回收站）
@@ -100,7 +187,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
   };
 
   // 永久删除
-  const handlePermanentDelete = (itemId: string, e: React.MouseEvent) => {
+  const handlePermanentDelete = async (itemId: string, e: React.MouseEvent) => {
     e.stopPropagation();
 
     const item = trashedItems.find(i => i.id === itemId);
@@ -109,9 +196,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
     toast(`确定要永久删除文档"${item.title}"吗？此操作无法撤销！`, {
       action: {
         label: '删除',
-        onClick: () => {
-          setTrashedItems(prev => prev.filter(i => i.id !== itemId));
-          console.log('❌ Permanently deleted:', item.title);
+        onClick: async () => {
+          try {
+            // 从 IndexedDB 删除
+            await documentDb.deleteDocument(itemId);
+            setTrashedItems(prev => prev.filter(i => i.id !== itemId));
+            console.log('❌ Permanently deleted:', item.title);
+            toast.success('文档已永久删除');
+          } catch (error) {
+            console.error('❌ Failed to delete document:', error);
+            toast.error('删除失败');
+          }
         },
       },
       cancel: {
@@ -128,9 +223,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
     toast(`确定要清空回收站吗？这将永久删除 ${trashedItems.length} 个文档，此操作无法撤销！`, {
       action: {
         label: '清空',
-        onClick: () => {
-          setTrashedItems([]);
-          console.log('🗑️ Trash emptied');
+        onClick: async () => {
+          try {
+            // 从 IndexedDB 删除所有回收站文档
+            await Promise.all(
+              trashedItems.map(item => documentDb.deleteDocument(item.id))
+            );
+            setTrashedItems([]);
+            console.log('🗑️ Trash emptied');
+            toast.success('回收站已清空');
+          } catch (error) {
+            console.error('❌ Failed to empty trash:', error);
+            toast.error('清空失败');
+          }
         },
       },
       cancel: {
@@ -247,9 +352,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
                 所有文档 ({filteredItems.length})
               </div>
               
-              {filteredItems.length === 0 ? (
+              {isLoading ? (
                 <div className="px-3 py-8 text-center text-slate-400 text-xs">
-                  {searchQuery ? '未找到匹配的文档' : '暂无文档'}
+                  加载中...
+                </div>
+              ) : filteredItems.length === 0 ? (
+                <div className="px-3 py-8 text-center text-slate-400 text-xs">
+                  {searchQuery ? '未找到匹配的文档' : '暂无文档，点击 + 创建新文档'}
                 </div>
               ) : (
                 filteredItems.map(item => (
