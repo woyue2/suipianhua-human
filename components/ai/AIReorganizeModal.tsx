@@ -13,7 +13,7 @@ interface AIReorganizeModalProps {
   onClose: () => void;
 }
 
-export const AIReorganizeModal: React.FC<AIReorganizeModalProps> = ({ onClose }) => {
+export const AIReorganizeModal = React.memo(({ onClose }: AIReorganizeModalProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<{
@@ -317,4 +317,6 @@ export const AIReorganizeModal: React.FC<AIReorganizeModalProps> = ({ onClose })
       </div>
     </div>
   );
-};
+});
+
+AIReorganizeModal.displayName = 'AIReorganizeModal';

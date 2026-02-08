@@ -9,7 +9,7 @@ import {
   useHoverDelay,
   useNodeKeyboard,
   useTextSelection,
-} from '@/hooks/useEditor';
+} from '@/hooks/useEditorStore';
 import {
   Plus,
   Trash2,
@@ -66,7 +66,7 @@ export const OutlineNodeRefactored = memo(function OutlineNodeRefactored({
   // 文本选择处理
   const { handleTextSelect } = useTextSelection(
     inputRef,
-    (start, end, rect) => {
+    (start: number, end: number, rect: DOMRect) => {
       formatting.setSelectionRange({ start, end });
       setFormatToolbarPosition({
         x: rect.left + ((start + end) / 2) * 8,

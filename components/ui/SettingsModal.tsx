@@ -7,7 +7,7 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
+export const SettingsModal = React.memo<SettingsModalProps>(({ onClose }) => {
   const autoSaveEnabled = useEditorStore(s => s.autoSaveEnabled);
   const setAutoSaveEnabled = useEditorStore(s => s.setAutoSaveEnabled);
   const isDarkMode = useEditorStore(s => s.isDarkMode);
@@ -113,5 +113,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
       </div>
     </div>
   );
-};
+});
+
+SettingsModal.displayName = 'SettingsModal';
 

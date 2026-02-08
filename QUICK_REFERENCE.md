@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
 
 ```typescript
 // components/MyComponent.tsx
-import { useNodeOperations, useToolbarState } from '@/hooks/useEditor';
+import { useNodeOperations, useToolbarState } from '@/hooks/useEditorStore';
 
 export function MyComponent({ nodeId }: { nodeId: string }) {
   // 使用节点操作 Hook

@@ -26,7 +26,80 @@ export class OutlineDatabase extends Dexie {
     this.version(1).stores({
       documents: 'id, title, createdAt, updatedAt', // 索引字段
     });
+    
+    // 预留 V2 迁移示例
+    // this.version(2).stores({
+    //   documents: 'id, title, createdAt, updatedAt, tags'
+    // }).upgrade(tx => {
+    //   // return tx.table('documents').toCollection().modify(doc => {
+    //   //   doc.tags = [];
+    //   // });
+    // });
   }
+}
+
+// 文档数据迁移逻辑
+const DOCUMENT_VERSION = '1.0.0';
+
+const migrations: Record<string, (doc: any) => any> = {
+  // 示例：将 0.9.0 迁移到 1.0.0
+  // '0.9.0': (doc) => {
+  //   doc.metadata.version = '1.0.0';
+  //   return doc;
+  // },
+};
+
+// 版本比较辅助函数
+function compareVersions(v1: string, v2: string): number {
+  const parts1 = v1.split('.').map(Number);
+  const parts2 = v2.split('.').map(Number);
+  
+  for (let i = 0; i < 3; i++) {
+    const p1 = parts1[i] || 0;
+    const p2 = parts2[i] || 0;
+    if (p1 > p2) return 1;
+    if (p1 < p2) return -1;
+  }
+  return 0;
+}
+
+function migrateDocument(doc: any): Document {
+  if (!doc.metadata || !doc.metadata.version) {
+    doc.metadata = { ...doc.metadata, version: '0.0.0' };
+  }
+
+  const currentVersion = doc.metadata.version;
+  
+  // 如果当前版本低于目标版本
+  if (compareVersions(currentVersion, DOCUMENT_VERSION) < 0) {
+    console.log(`Migrating document ${doc.id} from ${currentVersion} to ${DOCUMENT_VERSION}`);
+    
+    // 获取所有迁移版本并排序
+    const migrationVersions = Object.keys(migrations).sort(compareVersions);
+    
+    // 按顺序应用迁移
+    for (const version of migrationVersions) {
+      if (compareVersions(version, currentVersion) > 0 && 
+          compareVersions(version, DOCUMENT_VERSION) <= 0) {
+        try {
+          console.log(`Applying migration to version ${version}`);
+          doc = migrations[version](doc);
+          doc.metadata.version = version;
+        } catch (error) {
+          console.error(`Migration to version ${version} failed for document ${doc.id}:`, error);
+          // 可以在这里决定是中断还是继续，通常应该中断并报错
+          throw error;
+        }
+      }
+    }
+    
+    // 如果没有特定迁移需要应用（仅版本号更新），或者迁移后版本未更新到最新
+    if (doc.metadata.version !== DOCUMENT_VERSION) {
+       doc.metadata.version = DOCUMENT_VERSION;
+    }
+  }
+
+  return doc as Document;
 }
 
 // 创建数据库实例
@@ -66,7 +139,7 @@ export const documentDb = {
         return null;
       }
 
-      return {
+      const doc = {
         id: record.id,
         title: record.title,
         root: record.root,
@@ -76,6 +149,8 @@ export const documentDb = {
           version: record.metadata.version,
         },
       };
+
+      return migrateDocument(doc);
     } catch (error) {
       console.error('Failed to load document from IndexedDB:', error);
       throw error;

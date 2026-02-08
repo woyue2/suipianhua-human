@@ -28,9 +28,10 @@ export function handleApiError(error: unknown): NextResponse {
     const firstError = error.errors[0];
     return NextResponse.json(
       {
-        success: false,
-        error: firstError.message,
-        code: 'VALIDATION_ERROR',
+        code: 400,
+        message: firstError.message,
+        data: { errorCode: 'VALIDATION_ERROR' },
+        timestamp: Date.now(),
       } as ApiResponse,
       { status: 400 }
     );
@@ -40,9 +41,10 @@ export function handleApiError(error: unknown): NextResponse {
   if (error instanceof ApiError) {
     return NextResponse.json(
       {
-        success: false,
-        error: error.message,
-        code: error.code,
+        code: error.statusCode,
+        message: error.message,
+        data: error.code ? { errorCode: error.code } : null,
+        timestamp: Date.now(),
       } as ApiResponse,
       { status: error.statusCode }
     );
@@ -52,9 +54,10 @@ export function handleApiError(error: unknown): NextResponse {
   if (error instanceof Error) {
     return NextResponse.json(
       {
-        success: false,
-        error: error.message,
-        code: 'INTERNAL_ERROR',
+        code: 500,
+        message: error.message,
+        data: { errorCode: 'INTERNAL_ERROR' },
+        timestamp: Date.now(),
       } as ApiResponse,
       { status: 500 }
     );
@@ -63,9 +66,10 @@ export function handleApiError(error: unknown): NextResponse {
   // 未知错误
   return NextResponse.json(
     {
-      success: false,
-      error: '服务器内部错误',
-      code: 'UNKNOWN_ERROR',
+      code: 500,
+      message: '服务器内部错误',
+      data: { errorCode: 'UNKNOWN_ERROR' },
+      timestamp: Date.now(),
     } as ApiResponse,
     { status: 500 }
   );
@@ -134,11 +138,13 @@ export function parseAndValidateQuery<T>(
 /**
  * 创建成功响应
  */
-export function createSuccessResponse<T>(data: T, status: number = 200): NextResponse {
+export function createSuccessResponse<T>(data: T, status: number = 200, message: string = 'success'): NextResponse {
   return NextResponse.json(
     {
-      success: true,
+      code: status,
+      message,
       data,
+      timestamp: Date.now(),
     } as ApiResponse<T>,
     { status }
   );
@@ -154,9 +160,10 @@ export function createErrorResponse(
 ): NextResponse {
   return NextResponse.json(
     {
-      success: false,
-      error: message,
-      code,
+      code: statusCode,
+      message,
+      data: code ? { errorCode: code } : null,
+      timestamp: Date.now(),
     } as ApiResponse,
     { status: statusCode }
   );

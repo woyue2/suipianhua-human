@@ -1,12 +1,11 @@
 // === 核心业务实体 ===
 
-// 定义扁平化的节点（用于 Store 存储层）
-export interface StoredOutlineNode {
+// 定义基础节点属性
+export interface BaseOutlineNode {
   id: string;
   parentId: string | null;
   content: string;
   level: number;
-  children: string[]; // 存储 ID 数组
   images: ImageAttachment[];
   collapsed: boolean;
   createdAt: number;
@@ -19,23 +18,14 @@ export interface StoredOutlineNode {
   icon?: string;
 }
 
+// 定义扁平化的节点（用于 Store 存储层）
+export interface StoredOutlineNode extends BaseOutlineNode {
+  children: string[]; // 存储 ID 数组
+}
+
 // 定义树形节点（用于 UI 渲染和导出）
-export interface OutlineNode {
-  id: string;
-  parentId: string | null;
-  content: string;
-  level: number;
+export interface OutlineNode extends BaseOutlineNode {
   children: OutlineNode[]; // 渲染时使用对象数组
-  images: ImageAttachment[];
-  collapsed: boolean;
-  createdAt: number;
-  updatedAt: number;
-  // UI 相关属性
-  isHeader?: boolean;
-  isSubHeader?: boolean;
-  tags?: string[];
-  isItalic?: boolean;
-  icon?: string;
 }
 
 export interface ImageAttachment {
@@ -101,3 +91,10 @@ export interface UserConfig {
   };
 }
 
+// === API 响应 ===
+export interface ApiResponse<T = any> {
+  code: number;
+  message: string;
+  data: T;
+  timestamp: number;
+}

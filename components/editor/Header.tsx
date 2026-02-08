@@ -8,7 +8,7 @@ import { SettingsModal } from '@/components/ui/SettingsModal';
 import { LineSpacingControl } from '@/components/LineSpacingControl';
 import { toastExportError, toastImportError } from '@/lib/toast';
 
-export const Header: React.FC = () => {
+export const Header = React.memo(() => {
   const saveDocument = useEditorStore(s => s.saveDocument);
   const saveStatus = useEditorStore(s => s.saveStatus);
   const buildDocumentTree = useEditorStore(s => s.buildDocumentTree);
@@ -197,4 +197,6 @@ export const Header: React.FC = () => {
       )}
     </>
   );
-};
+});
+
+Header.displayName = 'Header';

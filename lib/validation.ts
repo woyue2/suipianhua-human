@@ -6,15 +6,17 @@ import { z } from 'zod';
 
 // 通用 API 响应格式
 export const ApiResponseSchema = z.object({
-  success: z.boolean(),
-  data: z.any().optional(),
-  error: z.string().optional(),
+  code: z.number(),
+  message: z.string(),
+  data: z.any(),
+  timestamp: z.number(),
 });
 
 export type ApiResponse<T = any> = {
-  success: boolean;
-  data?: T;
-  error?: string;
+  code: number;
+  message: string;
+  data: T;
+  timestamp: number;
 };
 
 // 图床上传配置 Schema

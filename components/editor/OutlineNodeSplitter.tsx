@@ -7,7 +7,7 @@ import {
   useNodeOperations,
   useTextFormatting,
   useNodeKeyboard,
-} from '@/hooks/useEditor';
+} from '@/hooks/useEditorStore';
 import { OperationToolbar } from './OperationToolbar';
 import { FormatToolbar } from './FormatToolbar';
 import { NodeBullet } from './NodeBullet';
@@ -175,6 +175,7 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
           onMoveUp={() => handleOperationWithClose(operations.moveUp)}
           onMoveDown={() => handleOperationWithClose(operations.moveDown)}
           onDelete={() => handleOperationWithClose(operations.deleteNode)}
+          onAIReorganize={() => {}}
           onMouseEnter={toolbar.activateToolbar}
           onMouseLeave={toolbar.deactivateToolbar}
         />
@@ -199,4 +200,3 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
     </div>
   );
 });
-

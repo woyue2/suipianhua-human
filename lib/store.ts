@@ -6,6 +6,12 @@ import { StoredOutlineNode, OutlineNode, Document } from '@/types';
 import { LineSpacingType, DEFAULTS } from '@/lib/constants';
 import { documentDb } from '@/lib/db';
 
+interface HistoryState {
+  nodes: Record<string, StoredOutlineNode>;
+  rootId: string;
+  title: string;
+}
+
 interface EditorStore {
   // 扁平化存储：所有节点平铺在字典中
   nodes: Record<string, StoredOutlineNode>;
@@ -26,9 +32,9 @@ interface EditorStore {
 
   // 历史栈
   history: {
-    past: Document[];
-    present: Document | null;
-    future: Document[];
+    past: HistoryState[];
+    present: HistoryState | null;
+    future: HistoryState[];
   };
 
   // Document list
@@ -78,7 +84,7 @@ interface EditorStore {
   // Undo/Redo Actions
   undo: () => void;
   redo: () => void;
-  pushHistory: (document: Document) => void;
+  pushHistory: () => void;
 
   // 辅助
   canUndo: boolean;
@@ -120,13 +126,7 @@ export const useEditorStore = create<EditorStore>()(
       
       // ✅ 内容更新后自动保存历史（用于撤销/重做）
       setTimeout(() => {
-        const state = get();
-        try {
-          const currentDoc = state.buildDocumentTree();
-          state.pushHistory(currentDoc);
-        } catch (error) {
-          console.warn('⚠️ Failed to push history:', error);
-        }
+        get().pushHistory();
       }, 0);
     },
 
@@ -578,10 +578,16 @@ export const useEditorStore = create<EditorStore>()(
       }
     },
 
-    pushHistory: (document) => {
+    pushHistory: () => {
       set(state => {
         const MAX_HISTORY = 30;
-        const snapshot = JSON.parse(JSON.stringify(document));
+        
+        // 创建当前状态的快照
+        const snapshot: HistoryState = {
+          nodes: JSON.parse(JSON.stringify(state.nodes)),
+          rootId: state.rootId,
+          title: state.title,
+        };
 
         if (state.history.present) {
           state.history.past.push(state.history.present);
@@ -617,11 +623,13 @@ export const useEditorStore = create<EditorStore>()(
           present: previous,
           future: [present, ...future],
         },
+        nodes: previous.nodes,
+        rootId: previous.rootId,
+        title: previous.title,
         canUndo: newPast.length > 0,
         canRedo: true,
       });
 
-      get().loadDocument(previous);
       console.log('↶ Undo performed');
     },
 
@@ -643,11 +651,13 @@ export const useEditorStore = create<EditorStore>()(
           present: next,
           future: newFuture,
         },
+        nodes: next.nodes,
+        rootId: next.rootId,
+        title: next.title,
         canUndo: true,
         canRedo: newFuture.length > 0,
       });
 
-      get().loadDocument(next);
       console.log('↷ Redo performed');
     },
   }))
