@@ -1,15 +1,36 @@
 'use server'
 
-import { openai } from '@ai-sdk/openai';
 import { streamObject } from 'ai';
 import { ReorganizeResultSchema } from '@/lib/ai-schema';
 import { OutlineNode } from '@/types';
+import { createAIModel, getDefaultProvider, getDefaultModel, AI_MODELS } from '@/lib/ai-config';
 
+/**
+ * AI 大纲重组
+ * 使用默认的 AI 提供商和模型
+ */
 export async function reorganizeOutline(currentTree: OutlineNode) {
+  const provider = getDefaultProvider();
+  const model = getDefaultModel(provider);
+
+  return reorganizeOutlineWithConfig(currentTree, provider, model);
+}
+
+/**
+ * AI 大纲重组（指定配置）
+ * 允许自定义 AI 提供商和模型
+ */
+export async function reorganizeOutlineWithConfig(
+  currentTree: OutlineNode,
+  provider: 'openai' | 'zhipu',
+  model: string
+) {
   const plainTextTree = extractContentFromTree(currentTree);
 
+  const aiModel = createAIModel(provider, model);
+
   const result = await streamObject({
-    model: openai('gpt-4o-mini') as any,
+    model: aiModel,
     schema: ReorganizeResultSchema,
     prompt: `你是一个大纲整理助手。请将以下混乱的列表整理成层级清晰的树状结构。
 
@@ -33,4 +54,11 @@ function extractContentFromTree(node: OutlineNode): any {
     content: node.content,
     children: node.children.map(extractContentFromTree),
   };
+}
+
+/**
+ * 获取可用的 AI 提供商和模型列表
+ */
+export async function getAvailableAIModels() {
+  return AI_MODELS;
 }

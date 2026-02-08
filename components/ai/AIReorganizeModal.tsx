@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useEditorStore } from '@/lib/store';
-import { reorganizeOutline } from '@/app/actions/ai';
+import { reorganizeOutlineWithConfig } from '@/app/actions/ai';
 import { generateId } from '@/utils/id';
 import { calculateDiff } from '@/utils/tree-diff';
 import { OutlineNode } from '@/types';
+import { AI_MODELS, type AIProvider, getDefaultProvider, getDefaultModel } from '@/lib/ai-config';
 
 interface AIReorganizeModalProps {
   onClose: () => void;
@@ -20,8 +21,17 @@ export const AIReorganizeModal: React.FC<AIReorganizeModalProps> = ({ onClose })
     changes: any[];
   } | null>(null);
 
+  // AI 配置状态
+  const [provider, setProvider] = useState<AIProvider>(getDefaultProvider());
+  const [model, setModel] = useState(() => getDefaultModel(provider));
+
   const buildDocumentTree = useEditorStore(s => s.buildDocumentTree);
   const loadDocument = useEditorStore(s => s.loadDocument);
+
+  // 当提供商改变时，更新默认模型
+  useEffect(() => {
+    setModel(getDefaultModel(provider));
+  }, [provider]);
 
   const handleReorganize = async () => {
     setIsLoading(true);
@@ -29,7 +39,7 @@ export const AIReorganizeModal: React.FC<AIReorganizeModalProps> = ({ onClose })
 
     try {
       const currentDoc = buildDocumentTree();
-      const result = await reorganizeOutline(currentDoc.root);
+      const result = await reorganizeOutlineWithConfig(currentDoc.root, provider, model);
 
       // 为 AI 返回的结构生成 ID
       const newTreeWithIds = addIdsToTree(result.newStructure);
@@ -98,6 +108,11 @@ export const AIReorganizeModal: React.FC<AIReorganizeModalProps> = ({ onClose })
     };
   };
 
+  const providerName = {
+    openai: 'OpenAI',
+    zhipu: '智谱AI',
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
@@ -112,11 +127,57 @@ export const AIReorganizeModal: React.FC<AIReorganizeModalProps> = ({ onClose })
 
         <div className="flex-1 overflow-y-auto p-6">
           {!previewData && !isLoading && (
-            <div className="text-center py-12">
-              <div className="text-6xl mb-4">✨</div>
-              <p className="text-slate-600 dark:text-slate-400 mb-6">
-                点击下方按钮，让 AI 帮你整理大纲结构
-              </p>
+            <div className="space-y-6">
+              {/* AI 配置选择 */}
+              <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    AI 提供商
+                  </label>
+                  <div className="flex gap-2">
+                    {Object.entries(AI_MODELS).map(([key, models]) => (
+                      <button
+                        key={key}
+                        onClick={() => setProvider(key as AIProvider)}
+                        className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                          provider === key
+                            ? 'bg-primary text-white'
+                            : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        {providerName[key as AIProvider]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    模型
+                  </label>
+                  <select
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md text-sm focus:ring-1 focus:ring-primary outline-none"
+                  >
+                    {AI_MODELS[provider].map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} - {m.description}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="text-center py-8">
+                <div className="text-6xl mb-4">✨</div>
+                <p className="text-slate-600 dark:text-slate-400 mb-2">
+                  点击下方按钮，让 AI 帮你整理大纲结构
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-500">
+                  当前使用：{providerName[provider]} - {AI_MODELS[provider].find(m => m.id === model)?.name}
+                </p>
+              </div>
             </div>
           )}
 
@@ -125,6 +186,9 @@ export const AIReorganizeModal: React.FC<AIReorganizeModalProps> = ({ onClose })
               <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
               <p className="text-slate-600 dark:text-slate-400">
                 AI 正在分析和重组中...
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-500 mt-2">
+                使用：{providerName[provider]} - {AI_MODELS[provider].find(m => m.id === model)?.name}
               </p>
             </div>
           )}
@@ -205,4 +269,3 @@ export const AIReorganizeModal: React.FC<AIReorganizeModalProps> = ({ onClose })
     </div>
   );
 };
-
