@@ -231,24 +231,14 @@ export function useNodeKeyboard(
       // Enter: 添加兄弟节点
       if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
         e.preventDefault();
-        const newId = operations.addSibling();
-        setTimeout(() => {
-          const newInput = document.querySelector(
-            `input[data-node-id="${newId}"]`
-          ) as HTMLInputElement;
-          if (newInput) newInput.focus();
-        }, 0);
+        operations.addSibling();
+        // 聚焦逻辑已移至 OutlineNodeRefactored 组件 useEffect 中
       }
       // Ctrl+Enter: 添加子节点
       else if (e.key === 'Enter' && e.ctrlKey) {
         e.preventDefault();
-        const newId = operations.addChild();
-        setTimeout(() => {
-          const newInput = document.querySelector(
-            `input[data-node-id="${newId}"]`
-          ) as HTMLInputElement;
-          if (newInput) newInput.focus();
-        }, 0);
+        operations.addChild();
+        // 聚焦逻辑已移至 OutlineNodeRefactored 组件 useEffect 中
       }
       // Tab: 增加缩进
       else if (e.key === 'Tab' && !e.shiftKey) {

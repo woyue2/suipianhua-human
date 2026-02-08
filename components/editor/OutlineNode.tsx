@@ -213,15 +213,15 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
   const getSpacingClass = () => {
     switch (lineSpacing) {
       case 'compact':
-        return depth === 0 ? 'mb-4' : 'mt-1';
+        return depth === 0 ? 'mb-2' : 'mt-0.5';
       case 'normal':
-        return depth === 0 ? 'mb-8' : 'mt-2';
+        return depth === 0 ? 'mb-4' : 'mt-1';
       case 'relaxed':
-        return depth === 0 ? 'mb-12' : 'mt-3';
+        return depth === 0 ? 'mb-6' : 'mt-1.5';
       case 'loose':
-        return depth === 0 ? 'mb-16' : 'mt-4';
-      default:
         return depth === 0 ? 'mb-8' : 'mt-2';
+      default:
+        return depth === 0 ? 'mb-4' : 'mt-1';
     }
   };
 

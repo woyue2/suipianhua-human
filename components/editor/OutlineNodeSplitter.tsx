@@ -32,6 +32,7 @@ interface OutlineNodeProps {
  */
 export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineNodeProps) {
   const node = useEditorStore(s => s.nodes[nodeId]);
+  const setShowAIModal = useEditorStore(s => s.setShowAIModal);
   const inputRef = useRef<HTMLInputElement>(null);
   const nodeRef = useRef<HTMLDivElement>(null);
 
@@ -175,7 +176,7 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
           onMoveUp={() => handleOperationWithClose(operations.moveUp)}
           onMoveDown={() => handleOperationWithClose(operations.moveDown)}
           onDelete={() => handleOperationWithClose(operations.deleteNode)}
-          onAIReorganize={() => {}}
+          onAIReorganize={() => handleOperationWithClose(() => setShowAIModal(true))}
           onMouseEnter={toolbar.activateToolbar}
           onMouseLeave={toolbar.deactivateToolbar}
         />

@@ -24,6 +24,8 @@ interface EditorStore {
   showSettings: boolean;
   isDarkMode: boolean;
   lineSpacing: LineSpacingType;
+  focusedNodeId: string | null;
+  filterTag: string | null;
 
   // 自动保存状态
   autoSaveEnabled: boolean;
@@ -68,6 +70,9 @@ interface EditorStore {
   // UI Actions
   setShowAIModal: (show: boolean) => void;
   setShowSettings: (show: boolean) => void;
+  setFocusedNodeId: (id: string | null) => void;
+  setFilterTag: (tag: string | null) => void;
+  removeTag: (nodeId: string, tag: string) => void;
   toggleDarkMode: () => void;
   setLineSpacing: (spacing: LineSpacingType) => void;
   setAutoSaveEnabled: (enabled: boolean) => void;
@@ -101,6 +106,8 @@ export const useEditorStore = create<EditorStore>()(
     showSettings: false,
     isDarkMode: false,
     lineSpacing: DEFAULTS.LINE_SPACING,
+    focusedNodeId: null,
+    filterTag: null,
     autoSaveEnabled: true,
     lastSavedAt: null,
     saveStatus: 'idle',
@@ -222,6 +229,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       console.log('➕ Added sibling node:', newId);
+      set({ focusedNodeId: newId });
       return newId;
     },
 
@@ -397,6 +405,24 @@ export const useEditorStore = create<EditorStore>()(
 
     setShowSettings: (show) => {
       set({ showSettings: show });
+    },
+
+    setFocusedNodeId: (id) => {
+      set({ focusedNodeId: id });
+    },
+
+    setFilterTag: (tag) => {
+      set({ filterTag: tag });
+    },
+
+    removeTag: (nodeId, tag) => {
+      set(state => {
+        const node = state.nodes[nodeId];
+        if (node && node.tags) {
+          node.tags = node.tags.filter(t => t !== tag);
+          node.updatedAt = Date.now();
+        }
+      });
     },
 
     toggleDarkMode: () => {
