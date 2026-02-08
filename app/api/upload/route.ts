@@ -8,6 +8,8 @@ import {
 import { ImageUploadConfigSchema } from '@/lib/validation';
 import { IMAGE_PROVIDERS } from '@/lib/image-upload';
 
+export const runtime = 'nodejs';
+
 /**
  * POST /api/upload
  * 
@@ -49,6 +51,17 @@ export async function POST(req: NextRequest) {
 
     // 3. 验证文件
     validateFileUpload(file);
+
+    if (
+      (validatedConfig.provider === 'custom' && !validatedConfig.customUrl) ||
+      ((validatedConfig.provider === 'imgur' || validatedConfig.provider === 'smms') &&
+        !validatedConfig.apiKey)
+    ) {
+      const arrayBuffer = await file.arrayBuffer();
+      const base64 = Buffer.from(arrayBuffer).toString('base64');
+      const url = `data:${file.type};base64,${base64}`;
+      return createSuccessResponse({ url });
+    }
 
     // 4. 获取图床提供商信息
     const providerInfo = IMAGE_PROVIDERS[config.provider];

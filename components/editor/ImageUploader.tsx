@@ -160,14 +160,14 @@ export function ImageUploader({ nodeId, onUploadComplete }: ImageUploaderProps) 
 
       const result = await response.json();
 
-      if (!result.success) {
-        throw new Error(result.error || '上传失败');
+      if (!response.ok) {
+        throw new Error(result?.message || '上传失败');
       }
 
       // 创建图片附件对象
       const imageAttachment: ImageAttachment = {
         id: crypto.randomUUID(),
-        url: result.data.url, // 修复：应该是 data.url
+        url: result.data.url,
         width: 0, // 实际宽高可以在图片加载后获取
         height: 0,
         uploadedAt: Date.now(),
@@ -185,9 +185,9 @@ export function ImageUploader({ nodeId, onUploadComplete }: ImageUploaderProps) 
       toastSuccess('图片上传成功');
 
       onUploadComplete?.();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('上传失败:', err);
-      const errorMsg = err?.message || '上传失败';
+      const errorMsg = err instanceof Error ? err.message : '上传失败';
       setError(errorMsg);
       toastError(errorMsg);
       setTimeout(() => setError(null), 3000);
@@ -230,4 +230,3 @@ export function ImageUploader({ nodeId, onUploadComplete }: ImageUploaderProps) 
     </>
   );
 }
-
