@@ -5,6 +5,9 @@ import DOMPurify from 'dompurify';
  * 使用 DOMPurify 进行服务器端和客户端的安全过滤
  */
 export function sanitizeHTML(html: string): string {
+  if (typeof window === 'undefined') {
+    return html;
+  }
   return DOMPurify.sanitize(html, {
     // 允许的标签
     ALLOWED_TAGS: ['strong', 'em', 'mark', 'u', 'p', 'br', 'span'],

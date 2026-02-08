@@ -19,7 +19,7 @@ export const IMAGE_PROVIDERS: Record<
   imgur: {
     name: 'Imgur',
     uploadUrl: 'https://www.imgurl.org/api/v3/upload',
-    headers: (cfg) => cfg.apiKey ? { Authorization: `Bearer ${cfg.apiKey}` } : {},
+    headers: (cfg) => cfg.apiKey ? { Authorization: `Bearer ${cfg.apiKey}` } : {} as Record<string, string> as Record<string, string>,
     formFieldName: 'file',
     parseResponse: (data: unknown) => {
       const d = data as { code?: number; data?: { url?: string; link?: string } } | undefined;
@@ -30,7 +30,7 @@ export const IMAGE_PROVIDERS: Record<
   smms: {
     name: 'SM.MS',
     uploadUrl: 'https://sm.ms/api/v2/upload',
-    headers: (cfg) => cfg.apiKey ? { Authorization: cfg.apiKey } : {},
+    headers: (cfg) => cfg.apiKey ? { Authorization: cfg.apiKey } : {} as Record<string, string> as Record<string, string>,
     formFieldName: 'smfile',
     parseResponse: (data: unknown) => {
       const d = data as { success?: boolean; data?: { url?: string } } | undefined;
@@ -41,7 +41,7 @@ export const IMAGE_PROVIDERS: Record<
   custom: {
     name: '自定义',
     uploadUrl: (cfg) => cfg.customUrl || '',
-    headers: (cfg) => cfg.apiKey ? { 'X-API-Key': cfg.apiKey } : {},
+    headers: (cfg) => cfg.apiKey ? { 'X-API-Key': cfg.apiKey } : {} as Record<string, string>,
     formFieldName: 'file',
     parseResponse: (data: unknown) => {
       const d = data as { url?: string } | undefined;

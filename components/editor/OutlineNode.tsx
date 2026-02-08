@@ -88,7 +88,7 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
     }
 
     hoverTimeoutRef.current = setTimeout(() => {
-      if (nodeRef.current && toolbarType !== 'format') {
+      if (nodeRef.current) {
         showOperationToolbar(e.clientX, e.clientY);
       }
     }, 1000);
@@ -216,7 +216,7 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
             )}
 
             {tags && tags.length > 0 && (
-              <TagList tags={tags} onRemove={removeTag} />
+              <TagList tags={tags} onRemoveTag={removeTag} />
             )}
           </div>
 

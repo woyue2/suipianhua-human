@@ -3,6 +3,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { StoredOutlineNode, OutlineNode, Document } from '@/types';
+import { LineSpacingType, DEFAULTS } from '@/lib/constants';
 import { documentDb } from '@/lib/db';
 
 interface EditorStore {
@@ -16,7 +17,7 @@ interface EditorStore {
   showAIModal: boolean;
   showSettings: boolean;
   isDarkMode: boolean;
-  lineSpacing: 'compact' | 'normal' | 'relaxed' | 'loose';
+  lineSpacing: LineSpacingType;
 
   // 自动保存状态
   autoSaveEnabled: boolean;
@@ -59,7 +60,7 @@ interface EditorStore {
   setShowAIModal: (show: boolean) => void;
   setShowSettings: (show: boolean) => void;
   toggleDarkMode: () => void;
-  setLineSpacing: (spacing: 'compact' | 'normal' | 'relaxed' | 'loose') => void;
+  setLineSpacing: (spacing: LineSpacingType) => void;
 
   // 辅助方法
   buildDocumentTree: () => Document;
@@ -89,7 +90,7 @@ export const useEditorStore = create<EditorStore>()(
     showAIModal: false,
     showSettings: false,
     isDarkMode: false,
-    lineSpacing: 'normal',
+    lineSpacing: DEFAULTS.LINE_SPACING,
     autoSaveEnabled: true,
     lastSavedAt: null,
     saveStatus: 'idle',

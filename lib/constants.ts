@@ -1,5 +1,98 @@
 import { StoredOutlineNode, SidebarItem } from '@/types';
 
+/**
+ * 应用常量配置
+ * 集中管理硬编码值，便于维护和修改
+ */
+
+// ============================================
+// 行间距配置
+// ============================================
+
+/**
+ * 行间距配置
+ */
+export const LINE_SPACING_CONFIG = {
+  compact: {
+    value: 'compact' as const,
+    label: '紧凑',
+    description: '1.2x',
+    classes: {
+      topLevel: 'mb-4',  // 顶级节点底部间距
+      nested: 'mt-1',    // 嵌套节点顶部间距
+    },
+  },
+  normal: {
+    value: 'normal' as const,
+    label: '正常',
+    description: '1.6x',
+    classes: {
+      topLevel: 'mb-8',
+      nested: 'mt-2',
+    },
+  },
+  relaxed: {
+    value: 'relaxed' as const,
+    label: '舒适',
+    description: '2.0x',
+    classes: {
+      topLevel: 'mb-12',
+      nested: 'mt-3',
+    },
+  },
+  loose: {
+    value: 'loose' as const,
+    label: '宽松',
+    description: '2.5x',
+    classes: {
+      topLevel: 'mb-16',
+      nested: 'mt-4',
+    },
+  },
+} as const;
+
+/**
+ * 行间距类型
+ */
+export type LineSpacingType = keyof typeof LINE_SPACING_CONFIG;
+
+/**
+ * 默认值配置
+ */
+export const DEFAULTS = {
+  /** 默认行间距 */
+  LINE_SPACING: 'normal' as LineSpacingType,
+} as const;
+
+/**
+ * 获取行间距样式类
+ * @param spacing 行间距类型
+ * @param isTopLevel 是否为顶级节点
+ * @returns Tailwind CSS 类名
+ */
+export function getLineSpacingClass(
+  spacing: LineSpacingType,
+  isTopLevel: boolean
+): string {
+  const config = LINE_SPACING_CONFIG[spacing] || LINE_SPACING_CONFIG.normal;
+  return isTopLevel ? config.classes.topLevel : config.classes.nested;
+}
+
+/**
+ * 获取所有行间距选项（用于 UI 选择器）
+ */
+export function getLineSpacingOptions() {
+  return Object.values(LINE_SPACING_CONFIG).map(config => ({
+    value: config.value,
+    label: config.label,
+    description: config.description,
+  }));
+}
+
+// ============================================
+// 初始数据
+// ============================================
+
 // 将原始数据转换为扁平化存储格式
 export const INITIAL_NODES: Record<string, StoredOutlineNode> = {
   'root': {
@@ -275,4 +368,3 @@ export const INITIAL_SIDEBAR_DATA: SidebarItem[] = [
   { id: 'travel', title: '2025旅行计划', emoji: '✈️' },
   { id: 'code', title: 'React 性能优化技巧', emoji: '💻' },
 ];
-
