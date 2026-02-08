@@ -3,13 +3,13 @@ import type { Document } from '@/types'
 
 export const supabaseDocumentDb = {
   async saveDocument(document: Document, userId?: string): Promise<void> {
-    const now = Date.now()
+    const now = new Date().toISOString()
     const payload = {
       id: document.id,
       title: document.title,
       root: document.root,
       metadata: document.metadata,
-      created_at: document.metadata.createdAt,
+      created_at: new Date(document.metadata.createdAt).toISOString(),
       updated_at: now,
       user_id: userId ?? null,
     }
