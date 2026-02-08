@@ -16,10 +16,7 @@ export const AI_MODELS = {
     { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: '经典模型' },
   ],
   zhipu: [
-    { id: 'glm-4-flash', name: 'GLM-4 Flash', description: '免费快速' },
-    { id: 'glm-4-plus', name: 'GLM-4 Plus', description: '高性能' },
-    { id: 'glm-4-air', name: 'GLM-4 Air', description: '轻量级' },
-    { id: 'glm-4.6-all', name: 'GLM-4.6 All', description: '最新旗舰' },
+    { id: 'glm-4.6', name: 'glm-4.6', description: 'glm-4.6' },
   ],
 } as const;
 

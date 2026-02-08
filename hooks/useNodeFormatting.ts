@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { useEditorStore } from '@/lib/store';
 import { renderMarkdown } from '@/lib/utils';
 
@@ -6,41 +6,28 @@ export function useNodeFormatting(nodeId: string) {
   const node = useEditorStore(s => s.nodes[nodeId]);
   const updateContent = useEditorStore(s => s.updateNodeContent);
 
-  const [selectedText, setSelectedText] = useState('');
-  const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
-  const [showFormatToolbar, setShowFormatToolbar] = useState(false);
-  const [formatToolbarPosition, setFormatToolbarPosition] = useState({ x: 0, y: 0 });
+  const selectionRangeRef = useRef<{ start: number; end: number } | null>(null);
 
   // Render formatted text with Markdown syntax using XSS protection
   const renderFormattedText = useMemo(() => {
     return renderMarkdown(node?.content || '');
   }, [node?.content]);
 
-  // Handle text selection
-  const handleTextSelect = useCallback((input: HTMLInputElement) => {
-    if (!input || !node) return;
+  // Store selection range when text is selected
+  const storeSelection = useCallback((input: HTMLInputElement) => {
+    if (!input) return;
 
     const start = input.selectionStart || 0;
     const end = input.selectionEnd || 0;
 
     if (start !== end) {
-      const selected = node.content.substring(start, end);
-      setSelectedText(selected);
-      setSelectionRange({ start, end });
-
-      const rect = input.getBoundingClientRect();
-      setFormatToolbarPosition({
-        x: rect.left + (start + end) / 2 * 8,
-        y: rect.bottom + 5,
-      });
-      setShowFormatToolbar(true);
-    } else {
-      setShowFormatToolbar(false);
+      selectionRangeRef.current = { start, end };
     }
-  }, [node]);
+  }, []);
 
   // Apply format to selected text
   const applyFormat = useCallback((format: 'bold' | 'italic' | 'underline' | 'highlight') => {
+    const selectionRange = selectionRangeRef.current;
     if (!selectionRange || !node) return;
 
     const { start, end } = selectionRange;
@@ -65,16 +52,14 @@ export function useNodeFormatting(nodeId: string) {
     }
 
     updateContent(nodeId, formatted);
-    setShowFormatToolbar(false);
-  }, [selectionRange, node, nodeId, updateContent]);
+    
+    // Clear selection after formatting
+    selectionRangeRef.current = null;
+  }, [node, nodeId, updateContent]);
 
   return {
-    selectedText,
-    showFormatToolbar,
-    formatToolbarPosition,
     renderFormattedText,
-    handleTextSelect,
+    storeSelection,
     applyFormat,
-    setShowFormatToolbar,
   };
 }

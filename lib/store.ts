@@ -33,6 +33,12 @@ interface EditorStore {
   documents: Array<{ id: string; title: string; updatedAt: number }>;
   isLoadingDocuments: boolean;
 
+  // 全局工具栏状态（确保同一时间只有一个工具栏显示）
+  activeToolbarNodeId: string | null;
+  activeFormatToolbarNodeId: string | null;
+  setActiveToolbarNodeId: (nodeId: string | null) => void;
+  setActiveFormatToolbarNodeId: (nodeId: string | null) => void;
+
   // Actions - 基础操作
   updateNodeContent: (id: string, content: string) => void;
   toggleCollapse: (id: string) => void;
@@ -92,6 +98,8 @@ export const useEditorStore = create<EditorStore>()(
     canRedo: false,
     documents: [],
     isLoadingDocuments: false,
+    activeToolbarNodeId: null,
+    activeFormatToolbarNodeId: null,
 
     updateNodeContent: (id, content) => {
       set(state => {
@@ -100,6 +108,17 @@ export const useEditorStore = create<EditorStore>()(
           state.nodes[id].updatedAt = Date.now();
         }
       });
+      
+      // ✅ 内容更新后自动保存历史（用于撤销/重做）
+      setTimeout(() => {
+        const state = get();
+        try {
+          const currentDoc = state.buildDocumentTree();
+          state.pushHistory(currentDoc);
+        } catch (error) {
+          console.warn('⚠️ Failed to push history:', error);
+        }
+      }, 0);
     },
 
     toggleCollapse: (id) => {
@@ -362,6 +381,14 @@ export const useEditorStore = create<EditorStore>()(
       set(state => {
         state.isDarkMode = !state.isDarkMode;
       });
+    },
+
+    setActiveToolbarNodeId: (nodeId) => {
+      set({ activeToolbarNodeId: nodeId });
+    },
+
+    setActiveFormatToolbarNodeId: (nodeId) => {
+      set({ activeFormatToolbarNodeId: nodeId });
     },
 
     buildDocumentTree: (): Document => {

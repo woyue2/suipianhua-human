@@ -1,12 +1,10 @@
 'use client';
 
-import React, { memo, useRef, KeyboardEvent, useState } from 'react';
+import React, { memo, useRef, KeyboardEvent, useState, useEffect } from 'react';
 import { useEditorStore } from '@/lib/store';
-import { UnifiedToolbar } from './UnifiedToolbar';
-import { useUnifiedToolbar } from '@/hooks/useUnifiedToolbar';
+import { NodeToolbar } from './NodeToolbar';
+import { FormatToolbar } from './FormatToolbar';
 import { useNodeFormatting } from '@/hooks/useNodeFormatting';
-import { useNodeTags } from '@/hooks/useNodeTags';
-import { TagList } from './TagList';
 
 interface OutlineNodeProps {
   nodeId: string;
@@ -27,26 +25,25 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
 
   const inputRef = useRef<HTMLInputElement>(null);
   const nodeRef = useRef<HTMLDivElement>(null);
+
+  // 使用全局工具栏状态，确保同一时间只有一个工具栏显示
+  const activeToolbarNodeId = useEditorStore(s => s.activeToolbarNodeId);
+  const setActiveToolbarNodeId = useEditorStore(s => s.setActiveToolbarNodeId);
+  const setActiveFormatToolbarNodeId = useEditorStore(s => s.setActiveFormatToolbarNodeId);
+
+  const showToolbar = activeToolbarNodeId === nodeId;
+  const [toolbarPosition, setToolbarPosition] = useState({ x: 0, y: 0 });
+  const [isEditing, setIsEditing] = useState(false);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const [isEditing, setIsEditing] = useState(false);
-
-  // 使用统一工具栏 Hook
+  // Use the formatting hook
   const {
-    toolbarType,
-    position,
-    showOperationToolbar,
     showFormatToolbar,
-    delayedHide,
-    cancelHide,
-    updatePosition,
-  } = useUnifiedToolbar(nodeId);
-
-  // 使用格式化 Hook
-  const { renderFormattedText, storeSelection, applyFormat } = useNodeFormatting(nodeId);
-  
-  // 使用标签 Hook
-  const { tags, removeTag } = useNodeTags(nodeId);
+    formatToolbarPosition,
+    renderFormattedText,
+    handleTextSelect,
+    applyFormat,
+  } = useNodeFormatting(nodeId);
 
   if (!node) return null;
 
@@ -54,7 +51,7 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
   const isCollapsed = node.collapsed || false;
 
   // 处理文本选择
-  const handleTextSelectWrapper = (e: React.MouseEvent | React.SyntheticEvent) => {
+  const handleTextSelectWrapper = () => {
     const input = inputRef.current;
     if (!input) return;
 
@@ -62,29 +59,29 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
     const end = input.selectionEnd || 0;
 
     if (start !== end) {
-      // 存储选区信息 - 这样 applyFormat 才能工作！
-      storeSelection(input);
-      
-      // 获取鼠标位置
-      const nativeEvent = (e as any)?.nativeEvent as MouseEvent;
-      const x = nativeEvent?.clientX || input.getBoundingClientRect().left;
-      const y = nativeEvent?.clientY || input.getBoundingClientRect().bottom;
-      
-      showFormatToolbar(x, y);
+      handleTextSelect(input);
+      setActiveFormatToolbarNodeId(nodeId);
+      setActiveToolbarNodeId(null); // ✅ 隐藏操作工具栏，避免冲突
+    } else {
+      setActiveFormatToolbarNodeId(null);
     }
   };
 
-  // 鼠标悬停处理
+  // 鼠标悬停处理 - 位置改到鼠标正下方
   const handleMouseEnter = (e: React.MouseEvent) => {
-    if (toolbarType === 'format') return;
+    if (showFormatToolbar) return; // ✅ 格式工具栏显示时不触发
 
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
     }
 
     hoverTimeoutRef.current = setTimeout(() => {
-      if (nodeRef.current && toolbarType !== 'format') {
-        showOperationToolbar(e.clientX, e.clientY);
+      if (nodeRef.current && !showFormatToolbar) {
+        setToolbarPosition({
+          x: e.clientX,
+          y: e.clientY// 紧贴鼠标，只有 5px！
+        });
+        setActiveToolbarNodeId(nodeId);
       }
     }, 1000);
   };
@@ -93,14 +90,25 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
     }
-    delayedHide(500);
+    setActiveToolbarNodeId(null);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (toolbarType === 'operation') {
-      updatePosition(e.clientX, e.clientY);
+    if (showToolbar && !showFormatToolbar && nodeRef.current) {
+      setToolbarPosition({
+        x: e.clientX,
+        y: e.clientY // 紧贴鼠标，只有 5px！
+      });
     }
   };
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
@@ -133,6 +141,49 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
     }
   };
 
+  const handleAddChild = () => {
+    const newId = addChildNode(nodeId);
+    setActiveToolbarNodeId(null);
+    setTimeout(() => {
+      const newInput = document.querySelector(`input[data-node-id="${newId}"]`) as HTMLInputElement;
+      if (newInput) newInput.focus();
+    }, 0);
+  };
+
+  const handleAddSibling = () => {
+    const newId = addSiblingNode(nodeId);
+    setActiveToolbarNodeId(null);
+    setTimeout(() => {
+      const newInput = document.querySelector(`input[data-node-id="${newId}"]`) as HTMLInputElement;
+      if (newInput) newInput.focus();
+    }, 0);
+  };
+
+  const handleIndent = () => {
+    indentNode(nodeId);
+    setActiveToolbarNodeId(null);
+  };
+
+  const handleOutdent = () => {
+    outdentNode(nodeId);
+    setActiveToolbarNodeId(null);
+  };
+
+  const handleMoveUp = () => {
+    moveNodeUp(nodeId);
+    setActiveToolbarNodeId(null);
+  };
+
+  const handleMoveDown = () => {
+    moveNodeDown(nodeId);
+    setActiveToolbarNodeId(null);
+  };
+
+  const handleDelete = () => {
+    deleteNode(nodeId);
+    setActiveToolbarNodeId(null);
+  };
+
   const textStyle = () => {
     if (node.isHeader) return "text-xl font-bold text-slate-800 dark:text-slate-200";
     if (node.isSubHeader) return "text-lg font-bold text-slate-700 dark:text-slate-300";
@@ -163,6 +214,7 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
           <div className={`flex items-baseline gap-2 flex-wrap ${textStyle()}`}>
             {node.icon && <span className="mr-1">{node.icon}</span>}
 
+            {/* 编辑模式：显示输入框 */}
             {isEditing ? (
               <input
                 ref={inputRef}
@@ -178,14 +230,15 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
                 autoFocus
                 className={`node-content border-none bg-transparent outline-none focus:ring-1 focus:ring-primary/20 rounded px-1 -mx-1 flex-1 min-w-0
                   ${node.isItalic ? 'italic text-slate-500' : ''}
-                  ${node.isSubHeader && tags?.includes('#重点') ? 'text-primary' : ''}
+                  ${node.isSubHeader && node.tags?.includes('#重点') ? 'text-primary' : ''}
                 `}
               />
             ) : (
+              /* 渲染模式：显示格式化后的内容 */
               <div
                 className={`node-content-rendered flex-1 min-w-0 px-1 -mx-1 cursor-text
                   ${node.isItalic ? 'italic text-slate-500' : ''}
-                  ${node.isSubHeader && tags?.includes('#重点') ? 'text-primary' : ''}
+                  ${node.isSubHeader && node.tags?.includes('#重点') ? 'text-primary' : ''}
                 `}
                 onClick={() => setIsEditing(true)}
                 dangerouslySetInnerHTML={{
@@ -194,62 +247,37 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
               />
             )}
 
-            {tags && tags.length > 0 && (
-              <TagList tags={tags} onRemove={removeTag} />
-            )}
+            {node.tags?.map(tag => (
+              <span key={tag} className="text-sm font-medium text-primary/60 bg-primary/5 px-1.5 py-0.5 rounded">
+                {tag}
+              </span>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* 统一工具栏 - 根据类型显示不同内容 */}
-      {toolbarType && (
-        <UnifiedToolbar
-          type={toolbarType}
-          position={position}
-          onMouseEnter={cancelHide}
-          onMouseLeave={() => delayedHide(toolbarType === 'format' ? 1000 : 500)}
-        >
-          {toolbarType === 'operation' ? (
-            <>
-              <button onClick={() => addChildNode(nodeId)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="添加子节点 (Ctrl+Enter)">
-                <span className="text-lg">+</span>
-              </button>
-              <button onClick={() => addSiblingNode(nodeId)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="添加同级节点 (Enter)">
-                <span className="text-lg">+</span>
-              </button>
-              <button onClick={() => indentNode(nodeId)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="缩进 (Tab)">
-                <span className="text-lg">→</span>
-              </button>
-              <button onClick={() => outdentNode(nodeId)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="取消缩进 (Shift+Tab)">
-                <span className="text-lg">←</span>
-              </button>
-              <button onClick={() => moveNodeUp(nodeId)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="上移">
-                <span className="text-lg">↑</span>
-              </button>
-              <button onClick={() => moveNodeDown(nodeId)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="下移">
-                <span className="text-lg">↓</span>
-              </button>
-              <button onClick={() => deleteNode(nodeId)} className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 rounded transition-colors" title="删除">
-                <span className="text-lg">🗑</span>
-              </button>
-            </>
-          ) : (
-            <>
-              <button onClick={() => applyFormat('bold')} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors font-bold" title="粗体">
-                B
-              </button>
-              <button onClick={() => applyFormat('italic')} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors italic" title="斜体">
-                I
-              </button>
-              <button onClick={() => applyFormat('underline')} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors underline" title="下划线">
-                U
-              </button>
-              <button onClick={() => applyFormat('highlight')} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="高亮">
-                <span className="bg-yellow-200 dark:bg-yellow-600 px-1">H</span>
-              </button>
-            </>
-          )}
-        </UnifiedToolbar>
+      {/* 浮动操作工具栏 - 在鼠标正下方居中，格式工具栏显示时隐藏 */}
+      {showToolbar && !showFormatToolbar && (
+        <NodeToolbar
+          position={toolbarPosition}
+          onAddChild={handleAddChild}
+          onAddSibling={handleAddSibling}
+          onIndent={handleIndent}
+          onOutdent={handleOutdent}
+          onMoveUp={handleMoveUp}
+          onMoveDown={handleMoveDown}
+          onDelete={handleDelete}
+          onMouseEnter={() => setActiveToolbarNodeId(nodeId)}
+          onMouseLeave={() => setActiveToolbarNodeId(null)}
+        />
+      )}
+
+      {/* 文本格式化工具栏 - 选中文字后显示在输入框正下方居中 */}
+      {showFormatToolbar && (
+        <FormatToolbar
+          position={formatToolbarPosition}
+          onApplyFormat={applyFormat}
+        />
       )}
 
       {/* 递归渲染子节点 */}
