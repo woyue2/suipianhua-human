@@ -33,6 +33,8 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
 
   const [isEditing, setIsEditing] = useState(false);
 
+  const [isAIReorganizing, setIsAIReorganizing] = useState(false);
+  
   // 使用统一工具栏 Hook
   const {
     toolbarType,
@@ -49,6 +51,44 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
   
   // 使用标签 Hook
   const { tags, removeTag } = useNodeTags(nodeId);
+
+  // AI 智能整理处理函数
+  const handleAIReorganize = async () => {
+    if (!node.content.trim()) return;
+    
+    setIsAIReorganizing(true);
+    try {
+      const response = await fetch('/api/reorganize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: node.content }),
+      });
+
+      if (!response.ok) throw new Error('AI request failed');
+
+      const data = await response.json();
+      const result = data.analysis?.[0];
+
+      if (result) {
+        const reorganized = result.reorganized?.[0];
+        if (reorganized) {
+          // 1. 更新节点内容（去除标签等元数据）
+          updateContent(nodeId, reorganized.content);
+          
+          // 2. 如果有属性，可以在这里处理（目前先处理标签）
+          if (reorganized.attributes) {
+            // TODO: 这里可以根据需求将 attributes 转换为标签或其他元数据
+            // 目前先简单打印
+            console.log('Extracted attributes:', reorganized.attributes);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('AI Reorganize failed:', error);
+    } finally {
+      setIsAIReorganizing(false);
+    }
+  };
 
   // 获取行间距设置
   const lineSpacing = useEditorStore(s => s.lineSpacing);
@@ -259,6 +299,14 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
                 <span className="text-lg">🗑</span>
               </button>
               <div className="w-px h-6 bg-slate-300 dark:bg-slate-600 mx-1" />
+              <button
+                onClick={handleAIReorganize}
+                disabled={isAIReorganizing}
+                className={`p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors ${isAIReorganizing ? 'animate-pulse' : ''}`}
+                title="AI 智能整理"
+              >
+                <span className="text-lg">✨</span>
+              </button>
               <ImageUploader nodeId={nodeId} />
             </>
           ) : (

@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronLeft,
+  Sparkles,
 } from 'lucide-react';
 
 interface OperationToolbarProps {
@@ -17,6 +18,8 @@ interface OperationToolbarProps {
   onMoveUp: () => void;
   onMoveDown: () => void;
   onDelete: () => void;
+  onAIReorganize: () => void;
+  isAIReorganizing?: boolean;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
 }
@@ -34,6 +37,8 @@ export const OperationToolbar = memo(function OperationToolbar({
   onMoveUp,
   onMoveDown,
   onDelete,
+  onAIReorganize,
+  isAIReorganizing = false,
   onMouseEnter,
   onMouseLeave,
 }: OperationToolbarProps) {
@@ -64,6 +69,20 @@ export const OperationToolbar = memo(function OperationToolbar({
         }
       }}
     >
+      {/* AI 整理 */}
+      <button
+        onClick={onAIReorganize}
+        disabled={isAIReorganizing}
+        className={`p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors ${
+          isAIReorganizing ? 'text-purple-400 animate-pulse cursor-wait' : 'text-purple-600 dark:text-purple-400'
+        }`}
+        title="AI 智能整理"
+      >
+        <Sparkles size={16} />
+      </button>
+
+      <div className="w-px h-4 bg-slate-300 dark:bg-slate-600" />
+
       {/* 添加节点 */}
       <button
         onClick={onAddChild}
