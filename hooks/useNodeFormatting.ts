@@ -35,20 +35,47 @@ export function useNodeFormatting(nodeId: string) {
     const selected = node.content.substring(start, end);
     const after = node.content.substring(end);
 
-    let formatted = '';
+    let openTag = '';
+    let closeTag = '';
+
     switch (format) {
       case 'bold':
-        formatted = `${before}**${selected}**${after}`;
+        openTag = '**';
+        closeTag = '**';
         break;
       case 'italic':
-        formatted = `${before}*${selected}*${after}`;
+        openTag = '*';
+        closeTag = '*';
         break;
       case 'underline':
-        formatted = `${before}<u>${selected}</u>${after}`;
+        openTag = '<u>';
+        closeTag = '</u>';
         break;
       case 'highlight':
-        formatted = `${before}==${selected}==${after}`;
+        openTag = '==';
+        closeTag = '==';
         break;
+    }
+
+    let formatted = '';
+    
+    // Check if the selection itself contains the tags at boundaries
+    // e.g. selected is "**text**"
+    const isWrappedInner = selected.startsWith(openTag) && selected.endsWith(closeTag) && selected.length >= openTag.length + closeTag.length;
+    
+    // Check if the selection is surrounded by tags
+    // e.g. before ends with "**" and after starts with "**"
+    const isWrappedOuter = before.endsWith(openTag) && after.startsWith(closeTag);
+
+    if (isWrappedInner) {
+      // Remove tags from inside selection
+      formatted = before + selected.substring(openTag.length, selected.length - closeTag.length) + after;
+    } else if (isWrappedOuter) {
+      // Remove tags from outside selection
+      formatted = before.substring(0, before.length - openTag.length) + selected + after.substring(closeTag.length);
+    } else {
+      // Add tags
+      formatted = before + openTag + selected + closeTag + after;
     }
 
     updateContent(nodeId, formatted);
