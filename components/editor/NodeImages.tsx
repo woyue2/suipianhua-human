@@ -36,23 +36,35 @@ export function NodeImages({ nodeId, images }: NodeImagesProps) {
     }
   };
 
+  const isUnoptimizedSrc = (src: string) => src.startsWith('data:') || src.startsWith('blob:');
+
   return (
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 mt-2">
         {images.map((image) => (
           <div
             key={image.id}
-            className="relative aspect-video rounded border border-slate-200 dark:border-slate-700 hover:border-primary transition-colors overflow-hidden bg-slate-100 dark:bg-slate-800 cursor-pointer"
+            className="group relative aspect-video rounded border border-slate-200 dark:border-slate-700 hover:border-primary transition-colors overflow-hidden bg-slate-100 dark:bg-slate-800 cursor-pointer"
             onClick={() => setSelectedImage(image.url)}
           >
-            <Image
-              src={image.url}
-              alt={image.alt || ''}
-              fill
-              className="object-cover"
-              sizes="(max-width: 640px) 100vw, 50vw"
-              loading="lazy"
-            />
+            {isUnoptimizedSrc(image.url) ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={image.url}
+                alt={image.alt || ''}
+                className="absolute inset-0 h-full w-full object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <Image
+                src={image.url}
+                alt={image.alt || ''}
+                fill
+                className="object-cover"
+                sizes="(max-width: 640px) 100vw, 50vw"
+                loading="lazy"
+              />
+            )}
             <button
               onClick={(e) => handleRemoveImage(image.id, e)}
               className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 z-10"
@@ -84,14 +96,23 @@ export function NodeImages({ nodeId, images }: NodeImagesProps) {
           
           <div className="relative w-full h-full flex items-start justify-center overflow-auto py-8">
             <div className="relative w-[90vw] max-w-5xl aspect-video shadow-2xl" onClick={(e) => e.stopPropagation()}>
-              <Image
-                src={selectedImage}
-                alt="预览"
-                fill
-                className="object-contain"
-                sizes="100vw"
-                loading="eager"
-              />
+              {isUnoptimizedSrc(selectedImage) ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={selectedImage}
+                  alt="预览"
+                  className="absolute inset-0 h-full w-full object-contain"
+                />
+              ) : (
+                <Image
+                  src={selectedImage}
+                  alt="预览"
+                  fill
+                  className="object-contain"
+                  sizes="100vw"
+                  loading="eager"
+                />
+              )}
             </div>
           </div>
         </div>

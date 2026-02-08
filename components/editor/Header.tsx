@@ -18,10 +18,15 @@ export const Header = React.memo(({ toggleSidebar }: HeaderProps) => {
   const buildDocumentTree = useEditorStore(s => s.buildDocumentTree);
   const loadDocument = useEditorStore(s => s.loadDocument);
   const title = useEditorStore(s => s.title);
+  const setTitle = useEditorStore(s => s.setTitle);
+  const fetchDocuments = useEditorStore(s => s.fetchDocuments);
   const undo = useEditorStore(s => s.undo);
   const redo = useEditorStore(s => s.redo);
   const canUndo = useEditorStore(s => s.canUndo);
   const canRedo = useEditorStore(s => s.canRedo);
+
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
 
   const showAIModal = useEditorStore(s => s.showAIModal);
   const setShowAIModal = useEditorStore(s => s.setShowAIModal);
@@ -109,6 +114,18 @@ export const Header = React.memo(({ toggleSidebar }: HeaderProps) => {
     return null;
   };
 
+  const commitTitle = async () => {
+    const nextTitle = titleDraft.trim() || '未命名';
+    if (nextTitle === title) {
+      setIsEditingTitle(false);
+      return;
+    }
+    setTitle(nextTitle);
+    setIsEditingTitle(false);
+    await saveDocument();
+    await fetchDocuments();
+  };
+
   return (
     <>
       <header className="h-14 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between px-6 shrink-0 bg-white dark:bg-background-dark z-10">
@@ -124,7 +141,31 @@ export const Header = React.memo(({ toggleSidebar }: HeaderProps) => {
           <Folder size={14} className="hidden lg:inline" />
           <span className="whitespace-nowrap hover:underline cursor-pointer hidden lg:inline">我的文档</span>
           <span className="text-slate-300 dark:text-slate-700 hidden lg:inline">|</span>
-          <span className="truncate">{title}</span>
+          {isEditingTitle ? (
+            <input
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onBlur={commitTitle}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitTitle();
+                if (e.key === 'Escape') setIsEditingTitle(false);
+              }}
+              autoFocus
+              className="truncate bg-transparent border-b border-primary outline-none min-w-0"
+            />
+          ) : (
+            <button
+              type="button"
+              className="truncate text-left"
+              onClick={() => {
+                setTitleDraft(title);
+                setIsEditingTitle(true);
+              }}
+              title="点击重命名"
+            >
+              {title || '未命名'}
+            </button>
+          )}
         </div>
         
         <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1 gap-1">

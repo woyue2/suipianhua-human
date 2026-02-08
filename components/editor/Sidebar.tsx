@@ -75,7 +75,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
 
   // 新建文档
   const handleCreateDocument = async () => {
-    const newId = crypto.randomUUID();
     const rootNodeId = crypto.randomUUID();
     const firstChildId = crypto.randomUUID();
     const now = Date.now();
@@ -108,6 +107,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
     
     // 初始化新文档的数据结构
     initializeWithData(initialNodes, rootNodeId, '新建文档');
+    const createdDocumentId = useEditorStore.getState().documentId;
     
     // 保存到 IndexedDB
     try {
@@ -118,7 +118,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
       await fetchDocuments();
       
       // 自动切换到新文档
-      setActiveItemId(newId);
+      setActiveItemId(createdDocumentId);
+      await handleSelectDocument(createdDocumentId);
       
       console.log('📄 Created new document with first editable node: 新建文档');
     } catch (error) {
