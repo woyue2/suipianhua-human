@@ -55,6 +55,9 @@ interface EditorStore {
   outdentNode: (nodeId: string) => void;
   moveNodeUp: (nodeId: string) => void;
   moveNodeDown: (nodeId: string) => void;
+  
+  // Drag & Drop
+  moveNode: (activeId: string, overId: string, type: 'before' | 'after' | 'inside') => void;
 
   // UI Actions
   setShowAIModal: (show: boolean) => void;
@@ -504,6 +507,50 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       console.log('✅ Document loaded:', document.id);
+    },
+
+    moveNode: (activeId, overId, type) => {
+      set(state => {
+        const activeNode = state.nodes[activeId];
+        const overNode = state.nodes[overId];
+        
+        if (!activeNode || !overNode) return;
+        
+        const oldParentId = activeNode.parentId;
+        if (!oldParentId) return; // Cannot move root or detached nodes
+
+        // Remove from old parent
+        const oldParent = state.nodes[oldParentId];
+        oldParent.children = oldParent.children.filter(id => id !== activeId);
+
+        if (type === 'inside') {
+          // Add as first child of overNode
+          state.nodes[overId].children.unshift(activeId);
+          state.nodes[activeId].parentId = overId;
+        } else {
+          // Add as sibling of overNode
+          const newParentId = overNode.parentId;
+          if (!newParentId) {
+             // Should not happen if overNode is not root
+             // Restore if failed
+             oldParent.children.push(activeId);
+             return;
+          }
+          
+          const newParent = state.nodes[newParentId];
+          const overIndex = newParent.children.indexOf(overId);
+          
+          if (type === 'before') {
+            newParent.children.splice(overIndex, 0, activeId);
+          } else {
+            newParent.children.splice(overIndex + 1, 0, activeId);
+          }
+          state.nodes[activeId].parentId = newParentId;
+        }
+        
+        state.nodes[activeId].updatedAt = Date.now();
+      });
+      get().saveDocument();
     },
 
     initializeWithData: (nodes, rootId, title) => {

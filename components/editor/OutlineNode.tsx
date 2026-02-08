@@ -9,6 +9,9 @@ import { useNodeTags } from '@/hooks/useNodeTags';
 import { TagList } from './TagList';
 import { ImageUploader } from './ImageUploader';
 import { NodeImages } from './NodeImages';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 
 interface OutlineNodeProps {
   nodeId: string;
@@ -26,6 +29,22 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
   const outdentNode = useEditorStore(s => s.outdentNode);
   const moveNodeUp = useEditorStore(s => s.moveNodeUp);
   const moveNodeDown = useEditorStore(s => s.moveNodeDown);
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: nodeId });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+  };
 
   const inputRef = useRef<HTMLInputElement>(null);
   const nodeRef = useRef<HTMLDivElement>(null);
@@ -207,16 +226,39 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
   };
 
   return (
-    <div className={`flex flex-col ${getSpacingClass()}`}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex flex-col ${getSpacingClass()}`}
+    >
       <div
-        ref={nodeRef}
+        ref={(el) => {
+           // Combine refs: setActivatorNodeRef and nodeRef
+           setActivatorNodeRef(el);
+           if (typeof nodeRef === 'function') {
+               // @ts-ignore
+               nodeRef(el);
+           } else if (nodeRef) {
+               // @ts-ignore
+               nodeRef.current = el;
+           }
+        }}
+        {...attributes}
+        {...listeners}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onMouseMove={handleMouseMove}
         className="group flex items-start gap-3 relative hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded px-2 py-1 transition-colors"
       >
         <div
-          onClick={() => hasChildren && toggleCollapse(nodeId)}
+          onClick={(e) => {
+             // Stop propagation to prevent drag start if needed?
+             // Actually, dnd-kit handles this well.
+             // But toggling collapse should probably not trigger drag if possible,
+             // but we want drag on the whole row.
+             // We can use the bullet as a separate handle if desired, but user asked for whole div.
+             if (hasChildren) toggleCollapse(nodeId);
+          }}
           className={getBulletClass()}
         />
 
@@ -241,6 +283,8 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
                   ${node.isItalic ? 'italic text-slate-500' : ''}
                   ${node.isSubHeader && tags?.includes('#重点') ? 'text-primary' : ''}
                 `}
+                // Prevent drag when interacting with input
+                onPointerDown={(e) => e.stopPropagation()}
               />
             ) : (
               <div
@@ -331,9 +375,11 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
       {/* 递归渲染子节点 */}
       {!isCollapsed && hasChildren && (
         <div className="ml-1 pl-6 mt-2 border-l-2 border-slate-100 dark:border-slate-800">
-          {node.children.map(childId => (
-            <OutlineNode key={childId} nodeId={childId} depth={depth + 1} />
-          ))}
+          <SortableContext items={node.children} strategy={verticalListSortingStrategy}>
+            {node.children.map(childId => (
+              <OutlineNode key={childId} nodeId={childId} depth={depth + 1} />
+            ))}
+          </SortableContext>
         </div>
       )}
     </div>
