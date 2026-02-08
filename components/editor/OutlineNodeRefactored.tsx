@@ -67,17 +67,6 @@ export const OutlineNodeRefactored = memo(function OutlineNodeRefactored({
   }, [focusedNodeId, nodeId]);
 
   // 悬停延迟处理
-  const hover = useHoverDelay(() => {
-    if (nodeRef.current && !toolbar.showFormatToolbar) {
-      toolbar.activateToolbar();
-    }
-  }, 1000);
-
-  if (!node) return null;
-
-  const hasChildren = node.children && node.children.length > 0;
-  const isCollapsed = node.collapsed || false;
-
   // 文本选择处理
   const { handleTextSelect } = useTextSelection(
     inputRef,
@@ -90,6 +79,17 @@ export const OutlineNodeRefactored = memo(function OutlineNodeRefactored({
       toolbar.activateFormatToolbar();
     }
   );
+
+  const hover = useHoverDelay(() => {
+    if (nodeRef.current && !toolbar.showFormatToolbar) {
+      toolbar.activateToolbar();
+    }
+  }, 1000);
+
+  if (!node) return null;
+
+  const hasChildren = node.children && node.children.length > 0;
+  const isCollapsed = node.collapsed || false;
 
   // 鼠标事件处理
   const handleMouseEnter = (e: React.MouseEvent) => {
