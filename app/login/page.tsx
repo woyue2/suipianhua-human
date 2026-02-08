@@ -12,6 +12,7 @@ export default function LoginPage() {
   const { signIn, signUp, signInWithGithub } = useAuth()
   const router = useRouter()
 
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
