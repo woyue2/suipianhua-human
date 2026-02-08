@@ -14,7 +14,12 @@
 ### 第三步：配置环境变量（最关键的一步）
 在 Vercel 的 Environment Variables 区域，你需要把 .env.local 里的内容复制过去。我已经为你整理好了清单，请 逐条添加 ：
 
-Key (变量名) Value (值) - 从你的 .env.local 复制 NEXT_PUBLIC_SUPABASE_URL https://uoivtwmgltirghrogjmp.supabase.co NEXT_PUBLIC_SUPABASE_ANON_KEY eyJhbGciOiJIUzI1Ni... (复制完整的长字符串) APP_ACCESS_PASSWORD foqe7900 (这是你的访问密码) ZHIPU_API_KEY 4b210a44e... (智谱AI Key) IMGUR_API_KEY sk-HGsVz... (图床 Key)
+Key (变量名) Value (值) - 从你的 .env.local 复制 
+NEXT_PUBLIC_SUPABASE_URL https://uoivtwmgltirghrogjmp.supabase.co 
+NEXT_PUBLIC_SUPABASE_ANON_KEY eyJhbGciOiJIUzI1Ni... (复制完整的长字符串) 
+APP_ACCESS_PASSWORD foqe7900 (这是你的访问密码) 
+ZHIPU_API_KEY 4b210a44e... (智谱AI Key) 
+IMGUR_API_KEY sk-HGsVz... (图床 Key)
 
 点击 Deploy 。等待约 1-2 分钟，你会看到满屏庆祝的彩带，Vercel 会给你一个 https://....vercel.app 的域名。
 
