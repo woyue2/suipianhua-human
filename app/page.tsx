@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Moon, Sun } from 'lucide-react';
 import { Sidebar } from '@/components/editor/Sidebar';
 import { Header } from '@/components/editor/Header';
@@ -18,6 +18,8 @@ export default function Home() {
   const canUndo = useEditorStore(s => s.canUndo);
   const canRedo = useEditorStore(s => s.canRedo);
   const saveDocument = useEditorStore(s => s.saveDocument);
+  
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // 初始化数据
   useEffect(() => {
@@ -82,7 +84,11 @@ export default function Home() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white dark:bg-background-dark text-slate-800 dark:text-slate-200">
-      <Sidebar items={INITIAL_SIDEBAR_DATA} />
+      <Sidebar 
+        items={INITIAL_SIDEBAR_DATA} 
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+      />
       
       <main className="flex-1 flex flex-col min-w-0">
         <Header />

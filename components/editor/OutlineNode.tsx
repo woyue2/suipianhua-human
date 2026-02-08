@@ -1,8 +1,8 @@
 'use client';
 
-import React, { memo, useRef, KeyboardEvent } from 'react';
+import React, { memo, useRef, KeyboardEvent, useState, useEffect } from 'react';
 import { useEditorStore } from '@/lib/store';
-import { Plus, Trash2, ChevronUp, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Plus, Trash2, ChevronUp, ChevronDown, ChevronRight, ChevronLeft, Bold, Italic, Underline, Highlighter } from 'lucide-react';
 
 interface OutlineNodeProps {
   nodeId: string;
@@ -22,25 +22,126 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
   const moveNodeDown = useEditorStore(s => s.moveNodeDown);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const nodeRef = useRef<HTMLDivElement>(null);
+  const [showToolbar, setShowToolbar] = useState(false);
+  const [showFormatToolbar, setShowFormatToolbar] = useState(false);
+  const [toolbarPosition, setToolbarPosition] = useState({ x: 0, y: 0 });
+  const [formatToolbarPosition, setFormatToolbarPosition] = useState({ x: 0, y: 0 });
+  const [selectedText, setSelectedText] = useState('');
+  const [selectionRange, setSelectionRange] = useState<{ start: number; end: number } | null>(null);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   if (!node) return null;
 
   const hasChildren = node.children && node.children.length > 0;
   const isCollapsed = node.collapsed || false;
 
+  // 处理文本选择
+  const handleTextSelect = () => {
+    const input = inputRef.current;
+    if (!input) return;
+
+    const start = input.selectionStart || 0;
+    const end = input.selectionEnd || 0;
+    
+    if (start !== end) {
+      const selected = node.content.substring(start, end);
+      setSelectedText(selected);
+      setSelectionRange({ start, end });
+      
+      // 获取输入框位置
+      const rect = input.getBoundingClientRect();
+      setFormatToolbarPosition({
+        x: rect.left + (start + end) / 2 * 8, // 粗略估算字符位置
+        y: rect.bottom + 5
+      });
+      setShowFormatToolbar(true);
+    } else {
+      setShowFormatToolbar(false);
+    }
+  };
+
+  // 应用格式
+  const applyFormat = (format: 'bold' | 'italic' | 'underline' | 'highlight') => {
+    if (!selectionRange) return;
+    
+    const { start, end } = selectionRange;
+    const before = node.content.substring(0, start);
+    const selected = node.content.substring(start, end);
+    const after = node.content.substring(end);
+    
+    let formatted = '';
+    switch (format) {
+      case 'bold':
+        formatted = `${before}**${selected}**${after}`;
+        break;
+      case 'italic':
+        formatted = `${before}*${selected}*${after}`;
+        break;
+      case 'underline':
+        formatted = `${before}<u>${selected}</u>${after}`;
+        break;
+      case 'highlight':
+        formatted = `${before}==${selected}==${after}`;
+        break;
+    }
+    
+    updateContent(nodeId, formatted);
+    setShowFormatToolbar(false);
+    
+    console.log(`✏️ Applied ${format} to: "${selected}"`);
+  };
+
+  // 鼠标悬停处理 - 位置改到鼠标下方
+  const handleMouseEnter = (e: React.MouseEvent) => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+
+    hoverTimeoutRef.current = setTimeout(() => {
+      if (nodeRef.current) {
+        setToolbarPosition({
+          x: e.clientX,
+          y: e.clientY + 20 // 鼠标下方 20px
+        });
+        setShowToolbar(true);
+      }
+    }, 1000);
+  };
+
+  const handleMouseLeave = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    setShowToolbar(false);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (showToolbar && nodeRef.current) {
+      setToolbarPosition({
+        x: e.clientX,
+        y: e.clientY + 20 // 跟随鼠标，保持在下方
+      });
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    // Enter - 添加兄弟节点
     if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
       e.preventDefault();
       const newId = addSiblingNode(nodeId);
-      // 延迟聚焦到新节点
       setTimeout(() => {
         const newInput = document.querySelector(`input[data-node-id="${newId}"]`) as HTMLInputElement;
         if (newInput) newInput.focus();
       }, 0);
     }
-    
-    // Ctrl+Enter - 添加子节点
     else if (e.key === 'Enter' && e.ctrlKey) {
       e.preventDefault();
       const newId = addChildNode(nodeId);
@@ -49,20 +150,14 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
         if (newInput) newInput.focus();
       }, 0);
     }
-    
-    // Tab - 增加缩进
     else if (e.key === 'Tab' && !e.shiftKey) {
       e.preventDefault();
       indentNode(nodeId);
     }
-    
-    // Shift+Tab - 减少缩进
     else if (e.key === 'Tab' && e.shiftKey) {
       e.preventDefault();
       outdentNode(nodeId);
     }
-    
-    // Backspace - 删除空节点
     else if (e.key === 'Backspace' && node.content === '') {
       e.preventDefault();
       deleteNode(nodeId);
@@ -71,6 +166,7 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
 
   const handleAddChild = () => {
     const newId = addChildNode(nodeId);
+    setShowToolbar(false);
     setTimeout(() => {
       const newInput = document.querySelector(`input[data-node-id="${newId}"]`) as HTMLInputElement;
       if (newInput) newInput.focus();
@@ -79,6 +175,7 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
 
   const handleAddSibling = () => {
     const newId = addSiblingNode(nodeId);
+    setShowToolbar(false);
     setTimeout(() => {
       const newInput = document.querySelector(`input[data-node-id="${newId}"]`) as HTMLInputElement;
       if (newInput) newInput.focus();
@@ -97,10 +194,35 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
     return base + "bg-slate-300 dark:bg-slate-600";
   };
 
+  // 渲染带格式的文本
+  const renderFormattedText = (text: string) => {
+    // 简单的 Markdown 样式渲染
+    let formatted = text;
+    
+    // 粗体 **text**
+    formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    
+    // 斜体 *text*
+    formatted = formatted.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    
+    // 下划线 <u>text</u>
+    // 已经是 HTML，不需要替换
+    
+    // 荧光笔 ==text==
+    formatted = formatted.replace(/==(.+?)==/g, '<mark class="bg-yellow-200 dark:bg-yellow-600">$1</mark>');
+    
+    return formatted;
+  };
+
   return (
     <div className={`flex flex-col ${depth === 0 ? 'mb-8' : 'mt-2'}`}>
-      <div className="group flex items-start gap-3 relative hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded px-2 py-1 transition-colors">
-        {/* 折叠/展开圆点 */}
+      <div 
+        ref={nodeRef}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        onMouseMove={handleMouseMove}
+        className="group flex items-start gap-3 relative hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded px-2 py-1 transition-colors"
+      >
         <div 
           onClick={() => hasChildren && toggleCollapse(nodeId)}
           className={getBulletClass()}
@@ -110,13 +232,14 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
           <div className={`flex items-baseline gap-2 flex-wrap ${textStyle()}`}>
             {node.icon && <span className="mr-1">{node.icon}</span>}
             
-            {/* 可编辑输入框 */}
             <input
               ref={inputRef}
               type="text"
               value={node.content}
               onChange={(e) => updateContent(nodeId, e.target.value)}
               onKeyDown={handleKeyDown}
+              onSelect={handleTextSelect}
+              onMouseUp={handleTextSelect}
               data-node-id={nodeId}
               placeholder="输入内容..."
               className={`node-content border-none bg-transparent outline-none focus:ring-1 focus:ring-primary/20 rounded px-1 -mx-1 flex-1 min-w-0
@@ -125,7 +248,6 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
               `}
             />
             
-            {/* 标签 */}
             {node.tags?.map(tag => (
               <span key={tag} className="text-sm font-medium text-primary/60 bg-primary/5 px-1.5 py-0.5 rounded">
                 {tag}
@@ -133,60 +255,116 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
             ))}
           </div>
         </div>
+      </div>
 
-        {/* 操作按钮（悬停显示） */}
-        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+      {/* 浮动操作工具栏 - 在鼠标下方 */}
+      {showToolbar && (
+        <div 
+          className="fixed z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl p-1 flex items-center gap-1"
+          style={{
+            left: `${toolbarPosition.x - 150}px`,
+            top: `${toolbarPosition.y}px`,
+            pointerEvents: 'auto'
+          }}
+          onMouseEnter={() => setShowToolbar(true)}
+          onMouseLeave={() => setShowToolbar(false)}
+        >
           <button
             onClick={handleAddChild}
-            className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 dark:text-slate-400"
+            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-400 transition-colors"
             title="添加子节点 (Ctrl+Enter)"
           >
-            <Plus size={14} />
+            <Plus size={16} />
           </button>
           <button
             onClick={handleAddSibling}
-            className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 dark:text-slate-400"
+            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-400 transition-colors"
             title="添加兄弟节点 (Enter)"
           >
-            <Plus size={14} className="rotate-90" />
+            <Plus size={16} className="rotate-90" />
           </button>
+          <div className="w-px h-4 bg-slate-300 dark:bg-slate-600" />
           <button
-            onClick={() => indentNode(nodeId)}
-            className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 dark:text-slate-400"
+            onClick={() => { indentNode(nodeId); setShowToolbar(false); }}
+            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-400 transition-colors"
             title="增加缩进 (Tab)"
           >
-            <ChevronRight size={14} />
+            <ChevronRight size={16} />
           </button>
           <button
-            onClick={() => outdentNode(nodeId)}
-            className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 dark:text-slate-400"
+            onClick={() => { outdentNode(nodeId); setShowToolbar(false); }}
+            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-400 transition-colors"
             title="减少缩进 (Shift+Tab)"
           >
-            <ChevronLeft size={14} />
+            <ChevronLeft size={16} />
           </button>
+          <div className="w-px h-4 bg-slate-300 dark:bg-slate-600" />
           <button
-            onClick={() => moveNodeUp(nodeId)}
-            className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 dark:text-slate-400"
+            onClick={() => { moveNodeUp(nodeId); setShowToolbar(false); }}
+            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-400 transition-colors"
             title="上移"
           >
-            <ChevronUp size={14} />
+            <ChevronUp size={16} />
           </button>
           <button
-            onClick={() => moveNodeDown(nodeId)}
-            className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 dark:text-slate-400"
+            onClick={() => { moveNodeDown(nodeId); setShowToolbar(false); }}
+            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-400 transition-colors"
             title="下移"
           >
-            <ChevronDown size={14} />
+            <ChevronDown size={16} />
           </button>
+          <div className="w-px h-4 bg-slate-300 dark:bg-slate-600" />
           <button
-            onClick={() => deleteNode(nodeId)}
-            className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500 dark:text-red-400"
+            onClick={() => { deleteNode(nodeId); setShowToolbar(false); }}
+            className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded text-red-500 dark:text-red-400 transition-colors"
             title="删除 (Backspace on empty)"
           >
-            <Trash2 size={14} />
+            <Trash2 size={16} />
           </button>
         </div>
-      </div>
+      )}
+
+      {/* 文本格式化工具栏 - 选中文字后显示 */}
+      {showFormatToolbar && (
+        <div 
+          className="fixed z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl p-1 flex items-center gap-1"
+          style={{
+            left: `${formatToolbarPosition.x - 100}px`,
+            top: `${formatToolbarPosition.y}px`,
+            pointerEvents: 'auto'
+          }}
+          onMouseDown={(e) => e.preventDefault()} // 防止失去焦点
+        >
+          <button
+            onClick={() => applyFormat('bold')}
+            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-400 transition-colors"
+            title="粗体"
+          >
+            <Bold size={16} />
+          </button>
+          <button
+            onClick={() => applyFormat('italic')}
+            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-400 transition-colors"
+            title="斜体"
+          >
+            <Italic size={16} />
+          </button>
+          <button
+            onClick={() => applyFormat('underline')}
+            className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-400 transition-colors"
+            title="下划线"
+          >
+            <Underline size={16} />
+          </button>
+          <button
+            onClick={() => applyFormat('highlight')}
+            className="p-1.5 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 rounded text-yellow-600 dark:text-yellow-400 transition-colors"
+            title="荧光笔"
+          >
+            <Highlighter size={16} />
+          </button>
+        </div>
+      )}
 
       {/* 递归渲染子节点 */}
       {!isCollapsed && hasChildren && (

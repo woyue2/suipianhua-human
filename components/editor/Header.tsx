@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Folder, Maximize2, PlayCircle, Type, Save, Upload, Download, Sparkles, Settings } from 'lucide-react';
+import { Folder, Save, Upload, Download, Sparkles, Settings } from 'lucide-react';
 import { useEditorStore } from '@/lib/store';
 import { AIReorganizeModal } from '@/components/ai/AIReorganizeModal';
 import { SettingsModal } from '@/components/ui/SettingsModal';
@@ -177,19 +177,6 @@ export const Header: React.FC = () => {
             title="设置"
           >
             <Settings size={16} />
-          </button>
-
-          <div className="w-px h-6 bg-slate-300 dark:bg-slate-600 mx-1" />
-
-          {/* 原有按钮 */}
-          <button className="p-1 px-2 hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 rounded shadow-sm flex items-center gap-1 transition-all">
-            <Maximize2 size={16} />
-          </button>
-          <button className="p-1 px-2 hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 rounded shadow-sm flex items-center gap-1 transition-all">
-            <PlayCircle size={16} />
-          </button>
-          <button className="p-1 px-2 hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 rounded shadow-sm flex items-center gap-1 transition-all">
-            <Type size={16} />
           </button>
         </div>
       </header>
