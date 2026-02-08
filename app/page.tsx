@@ -68,16 +68,15 @@ export default function Home() {
   // 如果没有任何文档，创建初始示例文档
   useEffect(() => {
     const createInitialDocument = async () => {
+      // 只有在明确知道不是网络错误（通过 fetchDocuments 失败来判断不太准，这里暂时保留逻辑但加日志）
+      // 如果 isInitialized 为 true 且 documents 为空，说明确实没文档
+      // 但现在我们先禁用这个“自作主张”的逻辑，方便排查 Supabase 连接问题
       if (!isInitialized || documents.length > 0) return;
       
-      console.log('📝 No documents found, creating initial document...');
-      initializeWithData(INITIAL_NODES, 'root', '读书笔记《我们如何学习》');
-      
-      // 保存初始文档到 IndexedDB
-      await saveDocument();
-      
-      // 重新加载文档列表
-      await fetchDocuments();
+      console.log('📝 No documents found. (Auto-creation disabled for debugging)');
+      // initializeWithData(INITIAL_NODES, 'root', '读书笔记《我们如何学习》');
+      // await saveDocument();
+      // await fetchDocuments();
     };
     
     createInitialDocument();
