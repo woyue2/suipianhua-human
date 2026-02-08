@@ -111,13 +111,13 @@ ${content}
   }
 
   const data = await response.json();
-  const content = data.choices[0].message.content;
+  const responseContent = data.choices[0].message.content;
 
   // 解析JSON响应
   try {
-    return JSON.parse(content);
+    return JSON.parse(responseContent);
   } catch (error) {
-    console.error('❌ JSON Parse Error:', content);
+    console.error('❌ JSON Parse Error:', responseContent);
     throw new Error('AI返回的不是有效的JSON格式');
   }
 }
