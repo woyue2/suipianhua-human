@@ -146,12 +146,21 @@ export default function TestAIPage() {
                     <div className="bg-gray-50 p-2 rounded text-sm text-gray-600">
                       <div className="text-[10px] text-gray-400 mb-1">SUGGESTED REORGANIZATION</div>
                       {item.reorganized.map((rec: any, k: number) => (
-                        <div key={k} className="flex gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
-                          <div>
-                            <div className="text-gray-900">{rec.content}</div>
-                            {rec.note && <div className="text-xs text-gray-500 mt-0.5">{rec.note}</div>}
+                        <div key={k} className="flex flex-col gap-1">
+                          <div className="flex gap-2 items-center">
+                            <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+                            <div className="text-gray-900 font-medium">{rec.content}</div>
                           </div>
+                          {rec.attributes && Object.keys(rec.attributes).length > 0 && (
+                            <div className="pl-6 flex flex-wrap gap-2">
+                              {Object.entries(rec.attributes).map(([key, value]) => (
+                                <span key={key} className="text-xs bg-white px-1.5 py-0.5 border rounded text-gray-500">
+                                  <span className="opacity-50 mr-1">{key}:</span>
+                                  {String(value)}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>

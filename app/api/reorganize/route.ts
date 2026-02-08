@@ -18,42 +18,59 @@ export async function POST(req: Request) {
     const apiKey = process.env.ZHIPU_API_KEY || DEMO_KEY;
     const url = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
 
-    const systemPrompt = `你是一个智能文档整理助手。你的任务是分析用户提供的文本行，识别每一行中包含的不同语义部分，并提出重组建议。
+    const systemPrompt = `你是一个智能文档整理助手。用户的输入通常是碎片化的信息，可能包含笔记、想法、链接、任务、代码片段等多种混合内容。
     
-    特别是针对单行文本包含多个信息点的情况（例如：任务描述 + 时间 + 标签 + 负责人），你需要将它们拆解。
-    
+    你的核心任务是：
+    1. **语义分段**：识别并分离行内不同的语义单元（Semantic Segments）。不要强行分类，而是根据内容本身识别其性质。
+    2. **信息提取**：如果片段具有明确的元数据特征（如标签、时间、URL、特定标识符），请提取出来。
+    3. **重组建议**：将核心内容与辅助信息分离，使结构更清晰。
+
     请返回 JSON 格式，结构如下：
     {
       "analysis": [
         {
           "originalLine": "原始行文本",
           "segments": [
-            { "text": "提取的片段", "type": "类型(如: task, date, tag, person, priority, note)", "confidence": 0.95 }
+            { 
+              "text": "提取的片段内容", 
+              "type": "类型推断 (如: content, note, url, tag, time, code, unknown)", 
+              "meaning": "简短说明该片段的作用 (可选)"
+            }
           ],
           "reorganized": [
-             { "content": "重组后的主要内容", "note": "备注/标签等元数据" }
+             { 
+               "content": "核心内容 (去除元数据后的主要文本)", 
+               "attributes": { "key": "value" } // 提取出的属性，如 date, urgency, link 等
+             }
           ],
-          "action": "建议的操作 (keep | split | extract_metadata)"
+          "action": "建议操作 (keep | split | extract_attributes)"
         }
       ]
     }
     
-    示例输入: "明天下午3点开会 #工作 @张三"
+    示例输入: "React Hook 学习 https://react.dev 重点看 useEffect #前端"
     示例输出: 
     {
       "analysis": [
         {
-          "originalLine": "明天下午3点开会 #工作 @张三",
+          "originalLine": "React Hook 学习 https://react.dev 重点看 useEffect #前端",
           "segments": [
-            { "text": "开会", "type": "task" },
-            { "text": "明天下午3点", "type": "date" },
-            { "text": "#工作", "type": "tag" },
-            { "text": "@张三", "type": "person" }
+            { "text": "React Hook 学习", "type": "content" },
+            { "text": "https://react.dev", "type": "url" },
+            { "text": "重点看 useEffect", "type": "note" },
+            { "text": "#前端", "type": "tag" }
           ],
           "reorganized": [
-            { "content": "开会", "note": "时间: 明天下午3点, 标签: 工作, 负责人: 张三" }
+            { 
+              "content": "React Hook 学习", 
+              "attributes": { 
+                "link": "https://react.dev", 
+                "note": "重点看 useEffect",
+                "tag": "前端"
+              } 
+            }
           ],
-          "action": "extract_metadata"
+          "action": "extract_attributes"
         }
       ]
     }`;
