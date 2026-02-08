@@ -16,6 +16,7 @@ interface EditorStore {
   showAIModal: boolean;
   showSettings: boolean;
   isDarkMode: boolean;
+  lineSpacing: 'compact' | 'normal' | 'relaxed' | 'loose';
 
   // 自动保存状态
   autoSaveEnabled: boolean;
@@ -43,6 +44,7 @@ interface EditorStore {
   updateNodeContent: (id: string, content: string) => void;
   toggleCollapse: (id: string) => void;
   addImage: (nodeId: string, image: any) => void;
+  removeImage: (nodeId: string, imageId: string) => void;
   
   // 节点操作 Actions
   addChildNode: (parentId: string) => string;
@@ -57,6 +59,7 @@ interface EditorStore {
   setShowAIModal: (show: boolean) => void;
   setShowSettings: (show: boolean) => void;
   toggleDarkMode: () => void;
+  setLineSpacing: (spacing: 'compact' | 'normal' | 'relaxed' | 'loose') => void;
 
   // 辅助方法
   buildDocumentTree: () => Document;
@@ -86,6 +89,7 @@ export const useEditorStore = create<EditorStore>()(
     showAIModal: false,
     showSettings: false,
     isDarkMode: false,
+    lineSpacing: 'normal',
     autoSaveEnabled: true,
     lastSavedAt: null,
     saveStatus: 'idle',
@@ -133,6 +137,17 @@ export const useEditorStore = create<EditorStore>()(
       set(state => {
         if (state.nodes[nodeId]) {
           state.nodes[nodeId].images.push(image);
+        }
+      });
+    },
+
+    removeImage: (nodeId, imageId) => {
+      set(state => {
+        if (state.nodes[nodeId]) {
+          state.nodes[nodeId].images = state.nodes[nodeId].images.filter(
+            img => img.id !== imageId
+          );
+          state.nodes[nodeId].updatedAt = Date.now();
         }
       });
     },
@@ -381,6 +396,11 @@ export const useEditorStore = create<EditorStore>()(
       set(state => {
         state.isDarkMode = !state.isDarkMode;
       });
+    },
+
+    setLineSpacing: (spacing) => {
+      set({ lineSpacing: spacing });
+      console.log('📏 Line spacing changed to:', spacing);
     },
 
     setActiveToolbarNodeId: (nodeId) => {

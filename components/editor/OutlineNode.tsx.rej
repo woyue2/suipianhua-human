@@ -1,0 +1,15 @@
+--- components/editor/OutlineNode.tsx
++++ components/editor/OutlineNode.tsx
+@@ -199,6 +201,12 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
+             {tags && tags.length > 0 && (
+               <TagList tags={tags} onRemove={removeTag} />
+             )}
++          </div>
++
++          {/* 图片显示区域 - 在节点内容下方 */}
++          {node.images && node.images.length > 0 && (
++            <NodeImages nodeId={nodeId} images={node.images} />
++          )}
+         </div>
+       </div>
+ 

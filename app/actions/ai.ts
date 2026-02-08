@@ -23,6 +23,7 @@ export async function reorganizeOutlineWithConfig(
   provider: 'openai' | 'zhipu',
   model: string
 ) {
+  // 保留格式信息的提取
   const plainTextTree = extractContentFromTree(currentTree);
 
   let result;
@@ -36,6 +37,29 @@ export async function reorganizeOutlineWithConfig(
   }
 
   return result;
+}
+
+/**
+ * 提取树结构内容，**保留格式标记**
+ */
+function extractContentFromTree(node: OutlineNode): any {
+  // 构建带格式的内容
+  let formattedContent = node.content || '';
+
+  // 添加格式标记到内容中
+  if (node.isItalic) {
+    formattedContent = `*${formattedContent}*`; // 斜体
+  }
+
+  return {
+    content: formattedContent,
+    isHeader: node.isHeader,
+    isSubHeader: node.isSubHeader,
+    tags: node.tags,
+    isItalic: node.isItalic,
+    icon: node.icon,
+    children: node.children.map(extractContentFromTree),
+  };
 }
 
 /**
@@ -54,19 +78,29 @@ async function callZhipuAI(plainTextTree: any, model: string) {
 要求：
 1. 识别主题，创建父级分类
 2. 将相关内容归纳到分类下
-3. 只返回 JSON 结构，不要包含 ID
+3. 只返回 JSON 结构
+4. **重要：保留所有格式标记！** 粗体用 **text**，斜体用 *text*
+5. 保持原有内容不变，只调整层级关系
 
-原始内容：
-${JSON.stringify(plainTextTree)}
+原始数据（包含格式信息）：
+${JSON.stringify(plainTextTree, null, 2)}
 
 请返回重组后的结构，必须严格按照以下JSON格式返回，不要添加任何其他文字：
 {
   "reasoning": "重组的理由说明",
   "newStructure": {
-    "content": "根节点内容",
+    "content": "根节点内容（保留格式标记）",
+    "isHeader": false,
+    "isSubHeader": false,
+    "tags": [],
+    "isItalic": false,
     "children": [
       {
-        "content": "子节点内容",
+        "content": "子节点内容（保留格式标记）",
+        "isHeader": false,
+        "isSubHeader": false,
+        "tags": [],
+        "isItalic": false,
         "children": []
       }
     ]
@@ -99,13 +133,13 @@ ${JSON.stringify(plainTextTree)}
   }
 
   const data = await response.json();
-  const content = data.choices[0].message.content;
+  const responseContent = data.choices[0].message.content;
 
   // 解析JSON响应
   try {
-    return JSON.parse(content);
+    return JSON.parse(responseContent);
   } catch (error) {
-    console.error('❌ JSON Parse Error:', content);
+    console.error('❌ JSON Parse Error:', responseContent);
     throw new Error('AI返回的不是有效的JSON格式');
   }
 }
@@ -119,31 +153,27 @@ async function callOpenAI(plainTextTree: any, model: string) {
 
   const aiModel = createAIModel('openai', model);
 
-  const result = await streamObject({
-    model: aiModel,
-    schema: ReorganizeResultSchema,
-    prompt: `你是一个大纲整理助手。请将以下混乱的列表整理成层级清晰的树状结构。
+  const prompt = `你是一个大纲整理助手。请将以下混乱的列表整理成层级清晰的树状结构。
 
 要求：
 1. 识别主题，创建父级分类
 2. 将相关内容归纳到分类下
-3. 只返回 JSON 结构，不要包含 ID
+3. 只返回 JSON 结构
+4. **重要：保留所有格式标记！**
 
-原始内容：
-${JSON.stringify(plainTextTree)}`,
+原始数据：
+${JSON.stringify(plainTextTree, null, 2)}`;
+
+  const result = await streamObject({
+    model: aiModel,
+    schema: ReorganizeResultSchema,
+    prompt,
   });
 
   // Wait for the result to complete and get the full object
   const { object } = await result;
 
   return object;
-}
-
-function extractContentFromTree(node: OutlineNode): any {
-  return {
-    content: node.content,
-    children: node.children.map(extractContentFromTree),
-  };
 }
 
 /**

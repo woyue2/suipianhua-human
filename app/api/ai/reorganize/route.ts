@@ -67,6 +67,7 @@ async function callZhipuAI(content: string, model: string, temperature: number) 
 2. 将相关内容归纳到分类下
 3. 只返回 JSON 结构，不要包含 ID
 4. 保持原有内容不变，只调整层级关系
+5. **重要：保留所有格式标记！** 斜体用 *text*，粗体用 **text*
 
 原始内容：
 ${content}
@@ -75,10 +76,18 @@ ${content}
 {
   "reasoning": "重组的理由说明",
   "newStructure": {
-    "content": "根节点内容",
+    "content": "根节点内容（保留格式标记）",
+    "isHeader": false,
+    "isSubHeader": false,
+    "tags": [],
+    "isItalic": false,
     "children": [
       {
-        "content": "子节点内容",
+        "content": "子节点内容（保留格式标记）",
+        "isHeader": false,
+        "isSubHeader": false,
+        "tags": [],
+        "isItalic": false,
         "children": []
       }
     ]

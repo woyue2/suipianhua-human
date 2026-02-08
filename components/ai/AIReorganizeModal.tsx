@@ -7,6 +7,7 @@ import { generateId } from '@/utils/id';
 import { calculateDiff } from '@/utils/tree-diff';
 import { OutlineNode } from '@/types';
 import { AI_MODELS, type AIProvider, getDefaultProvider, getDefaultModel } from '@/lib/ai-config';
+import { toast } from 'sonner';
 
 interface AIReorganizeModalProps {
   onClose: () => void;
@@ -60,13 +61,17 @@ export const AIReorganizeModal: React.FC<AIReorganizeModalProps> = ({ onClose })
     }
   };
 
-  const handleApply = () => {
+  const handleApply = async () => {
     if (!previewData) return;
 
     const currentDoc = buildDocumentTree();
+
+    // 为AI返回的树添加ID并恢复格式信息
+    const newTreeWithIds = addIdsToTree(previewData.newTree);
+
     const newDoc = {
       ...currentDoc,
-      root: previewData.newTree,
+      root: newTreeWithIds,
       metadata: {
         ...currentDoc.metadata,
         updatedAt: Date.now(),
@@ -74,17 +79,30 @@ export const AIReorganizeModal: React.FC<AIReorganizeModalProps> = ({ onClose })
     };
 
     loadDocument(newDoc);
+
+    // ✅ 自动保存到IndexedDB
+    const saveDocument = useEditorStore(s => s.saveDocument);
+    await saveDocument();
+
+    toast.success('AI重组已保存');
     onClose();
   };
 
-  // 为树结构添加 ID
+  // 为树结构添加 ID 并恢复格式信息
   const addIdsToTree = (node: any): OutlineNode => {
     const now = Date.now();
+    const { content, isItalic, isHeader, isSubHeader } = parseFormatInfo(node.content);
+
     return {
       id: generateId(),
       parentId: null,
-      content: node.content,
+      content: content,
       level: 0,
+      isItalic: node.isItalic || isItalic,
+      isHeader: node.isHeader || isHeader,
+      isSubHeader: node.isSubHeader || isSubHeader,
+      tags: node.tags || [],
+      icon: node.icon,
       children: node.children.map((child: any) => addIdsToTreeRecursive(child, 1)),
       images: [],
       collapsed: false,
@@ -95,11 +113,18 @@ export const AIReorganizeModal: React.FC<AIReorganizeModalProps> = ({ onClose })
 
   const addIdsToTreeRecursive = (node: any, level: number): OutlineNode => {
     const now = Date.now();
+    const { content, isItalic, isHeader, isSubHeader } = parseFormatInfo(node.content);
+
     return {
       id: generateId(),
       parentId: null,
-      content: node.content,
+      content: content,
       level,
+      isItalic: node.isItalic || isItalic,
+      isHeader: node.isHeader || isHeader,
+      isSubHeader: node.isSubHeader || isSubHeader,
+      tags: node.tags || [],
+      icon: node.icon,
       children: node.children.map((child: any) => addIdsToTreeRecursive(child, level + 1)),
       images: [],
       collapsed: false,
@@ -107,6 +132,38 @@ export const AIReorganizeModal: React.FC<AIReorganizeModalProps> = ({ onClose })
       updatedAt: now,
     };
   };
+
+  /**
+   * 从内容中解析格式信息
+   * 检测 **text**, *text* 等Markdown格式标记
+   */
+  function parseFormatInfo(content: string): {
+    formatInfo: {
+      content: string;
+      isItalic?: boolean;
+      isHeader?: boolean;
+      isSubHeader?: boolean;
+    }
+  } {
+    let cleanContent = content;
+    let isItalic = false;
+
+    // 检测斜体 *text*
+    if (cleanContent.startsWith('*') && cleanContent.endsWith('*')) {
+      isItalic = true;
+      cleanContent = cleanContent.slice(1, -1);
+    }
+
+    // 检测粗体 **text** （可选，根据需要）
+    // if (cleanContent.startsWith('**') && cleanContent.endsWith('**')) {
+    //   cleanContent = cleanContent.slice(2, -2);
+    // }
+
+    return {
+      content: cleanContent,
+      isItalic,
+    };
+  }
 
   const providerName = {
     openai: 'OpenAI',

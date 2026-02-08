@@ -5,6 +5,7 @@ import { Folder, Save, Upload, Download, Sparkles, Settings } from 'lucide-react
 import { useEditorStore } from '@/lib/store';
 import { AIReorganizeModal } from '@/components/ai/AIReorganizeModal';
 import { SettingsModal } from '@/components/ui/SettingsModal';
+import { LineSpacingControl } from '@/components/LineSpacingControl';
 import { toastExportError, toastImportError } from '@/lib/toast';
 
 export const Header: React.FC = () => {
@@ -170,6 +171,9 @@ export const Header: React.FC = () => {
           >
             <Sparkles size={16} />
           </button>
+
+          {/* 行间距控制 */}
+          <LineSpacingControl />
 
           {/* 设置 */}
           <button 
