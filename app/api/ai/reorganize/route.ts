@@ -23,8 +23,10 @@ export async function POST(req: NextRequest) {
       AIReorganizeRequestSchema
     );
 
+    console.log(`📤 AI Request: provider=${provider}, model=${model}`);
+
     // 2. 创建 AI 模型实例
-    const aiModel = createAIModel(provider ?? 'zhipu', model);
+    const aiModel = createAIModel(provider, model);
 
     // 3. 构建 AI Prompt
     const prompt = `
@@ -50,7 +52,10 @@ ${content}
       schema: ReorganizeResultSchema,
       prompt,
       temperature,
+      mode: 'json', // 强制使用 JSON 模式
     });
+
+    console.log(`✅ AI Response received`);
 
     // 5. 返回结果
     return createSuccessResponse({
@@ -60,7 +65,8 @@ ${content}
       model,
       temperature,
     });
-  } catch (error) {
+  } catch (error: any) {
+    console.error('❌ AI Error:', error);
     return handleApiError(error);
   }
 }

@@ -79,7 +79,7 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
       if (nodeRef.current && !showFormatToolbar) {
         setToolbarPosition({
           x: e.clientX,
-          y: e.clientY// 紧贴鼠标，只有 5px！
+          y: e.clientY + 20 // 鼠标下方 20px
         });
         setActiveToolbarNodeId(nodeId);
       }
@@ -97,7 +97,7 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
     if (showToolbar && !showFormatToolbar && nodeRef.current) {
       setToolbarPosition({
         x: e.clientX,
-        y: e.clientY + 5 // 紧贴鼠标，只有 5px！
+        y: e.clientY + 20 // 跟随鼠标，保持在下方
       });
     }
   };
@@ -276,7 +276,10 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
       {showFormatToolbar && (
         <FormatToolbar
           position={formatToolbarPosition}
-          onApplyFormat={applyFormat}
+          onBold={() => applyFormat('bold')}
+          onItalic={() => applyFormat('italic')}
+          onUnderline={() => applyFormat('underline')}
+          onHighlight={() => applyFormat('highlight')}
         />
       )}
 

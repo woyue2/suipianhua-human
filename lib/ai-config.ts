@@ -19,6 +19,7 @@ export const AI_MODELS = {
     { id: 'glm-4-flash', name: 'GLM-4 Flash', description: '免费快速' },
     { id: 'glm-4-plus', name: 'GLM-4 Plus', description: '高性能' },
     { id: 'glm-4-air', name: 'GLM-4 Air', description: '轻量级' },
+    { id: 'glm-4.6-all', name: 'GLM-4.6 All', description: '最新旗舰' },
   ],
 } as const;
 
@@ -40,7 +41,10 @@ export function createAIModel(provider: AIProvider, model: string) {
         apiKey,
       });
 
-      return zhipuClient(model);
+      // 对于 GLM-4.6，需要使用 chat completions
+      const instance = zhipuClient(model);
+
+      return instance;
     }
 
     case 'openai':
