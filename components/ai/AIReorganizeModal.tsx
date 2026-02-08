@@ -91,16 +91,16 @@ export const AIReorganizeModal: React.FC<AIReorganizeModalProps> = ({ onClose })
   // 为树结构添加 ID 并恢复格式信息
   const addIdsToTree = (node: any): OutlineNode => {
     const now = Date.now();
-    const { content, isItalic, isHeader, isSubHeader } = parseFormatInfo(node.content);
+    const parsed = parseFormatInfo(node.content);
 
     return {
       id: generateId(),
       parentId: null,
-      content: content,
+      content: parsed.content,
       level: 0,
-      isItalic: node.isItalic || isItalic,
-      isHeader: node.isHeader || isHeader,
-      isSubHeader: node.isSubHeader || isSubHeader,
+      isItalic: node.isItalic || parsed.isItalic,
+      isHeader: node.isHeader,
+      isSubHeader: node.isSubHeader,
       tags: node.tags || [],
       icon: node.icon,
       children: node.children.map((child: any) => addIdsToTreeRecursive(child, 1)),
@@ -113,16 +113,16 @@ export const AIReorganizeModal: React.FC<AIReorganizeModalProps> = ({ onClose })
 
   const addIdsToTreeRecursive = (node: any, level: number): OutlineNode => {
     const now = Date.now();
-    const { content, isItalic, isHeader, isSubHeader } = parseFormatInfo(node.content);
+    const parsed = parseFormatInfo(node.content);
 
     return {
       id: generateId(),
       parentId: null,
-      content: content,
+      content: parsed.content,
       level,
-      isItalic: node.isItalic || isItalic,
-      isHeader: node.isHeader || isHeader,
-      isSubHeader: node.isSubHeader || isSubHeader,
+      isItalic: node.isItalic || parsed.isItalic,
+      isHeader: node.isHeader,
+      isSubHeader: node.isSubHeader,
       tags: node.tags || [],
       icon: node.icon,
       children: node.children.map((child: any) => addIdsToTreeRecursive(child, level + 1)),
@@ -138,26 +138,17 @@ export const AIReorganizeModal: React.FC<AIReorganizeModalProps> = ({ onClose })
    * 检测 **text**, *text* 等Markdown格式标记
    */
   function parseFormatInfo(content: string): {
-    formatInfo: {
-      content: string;
-      isItalic?: boolean;
-      isHeader?: boolean;
-      isSubHeader?: boolean;
-    }
+    content: string;
+    isItalic?: boolean;
   } {
     let cleanContent = content;
     let isItalic = false;
 
     // 检测斜体 *text*
-    if (cleanContent.startsWith('*') && cleanContent.endsWith('*')) {
+    if (cleanContent.startsWith('*') && cleanContent.endsWith('*') && cleanContent.length > 1) {
       isItalic = true;
       cleanContent = cleanContent.slice(1, -1);
     }
-
-    // 检测粗体 **text** （可选，根据需要）
-    // if (cleanContent.startsWith('**') && cleanContent.endsWith('**')) {
-    //   cleanContent = cleanContent.slice(2, -2);
-    // }
 
     return {
       content: cleanContent,

@@ -27,10 +27,10 @@ export async function POST(req: NextRequest) {
 
     if (provider === 'zhipu') {
       // 智谱AI使用直接HTTP调用
-      result = await callZhipuAI(content, model, temperature);
+      result = await callZhipuAI(content, model, temperature ?? 0.7);
     } else {
       // OpenAI使用 Vercel AI SDK
-      result = await callOpenAI(content, model, temperature);
+      result = await callOpenAI(content, model, temperature ?? 0.7);
     }
 
     console.log(`✅ AI Response received`);
