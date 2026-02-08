@@ -24,15 +24,15 @@ export const SettingsModal = React.memo<SettingsModalProps>(({ onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-slate-800 shadow-xl w-full max-w-full sm:max-w-4xl h-full sm:h-auto rounded-none sm:rounded-lg">
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
           <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
             设置
           </h2>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-4 sm:p-6 space-y-6 overflow-y-auto max-h-[calc(100vh-8rem)] sm:max-h-[70vh]">
           {/* 自动保存 */}
           <div className="flex items-center justify-between">
             <div>
@@ -96,7 +96,7 @@ export const SettingsModal = React.memo<SettingsModalProps>(({ onClose }) => {
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+        <div className="px-4 sm:px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors"
@@ -116,4 +116,3 @@ export const SettingsModal = React.memo<SettingsModalProps>(({ onClose }) => {
 });
 
 SettingsModal.displayName = 'SettingsModal';
-

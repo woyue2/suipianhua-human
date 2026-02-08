@@ -92,7 +92,11 @@ export const OutlineTree: React.FC = () => {
   const rootNode = nodes[rootId];
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-12 md:px-12 lg:px-24">
+    <div className="
+      max-w-2xl lg:max-w-4xl mx-auto
+      px-4 py-6 sm:px-6 sm:py-8
+      md:px-8 md:py-12
+    ">
       <header className="mb-12">
         <h1 className="text-4xl font-bold flex items-center gap-4 group">
           <span className="text-3xl">{rootNode.icon || '📚'}</span>

@@ -248,7 +248,7 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onMouseMove={handleMouseMove}
-        className="group flex items-start gap-3 relative hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded px-2 py-1 transition-colors"
+        className="group flex items-start gap-2 sm:gap-3 relative hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded px-2 py-2 sm:py-1 transition-colors active:bg-slate-100 dark:active:bg-slate-800/50"
       >
         <div
           onClick={(e) => {
@@ -263,7 +263,7 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
         />
 
         <div className="flex-1 min-w-0">
-          <div className={`flex items-baseline gap-2 flex-wrap ${textStyle()}`}>
+          <div className={`flex items-baseline gap-1 sm:gap-2 flex-wrap text-sm sm:text-base ${textStyle()}`}>
             {node.icon && <span className="mr-1">{node.icon}</span>}
 
             {isEditing ? (

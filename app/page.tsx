@@ -9,6 +9,7 @@ import { useEditorStore } from '@/lib/store';
 import { INITIAL_NODES, INITIAL_SIDEBAR_DATA } from '@/lib/constants';
 
 export default function Home() {
+  const [isMobile, setIsMobile] = useState(false);
   const isDarkMode = useEditorStore(s => s.isDarkMode);
   const toggleDarkMode = useEditorStore(s => s.toggleDarkMode);
   const initializeWithData = useEditorStore(s => s.initializeWithData);
@@ -22,6 +23,15 @@ export default function Home() {
   
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+
+  useEffect(() => {
+    const updateIsMobile = () => {
+      setIsMobile(typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
+    };
+    updateIsMobile();
+    window.addEventListener('resize', updateIsMobile);
+    return () => window.removeEventListener('resize', updateIsMobile);
+  }, []);
 
   // 初始化数据
   useEffect(() => {
@@ -112,6 +122,14 @@ export default function Home() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white dark:bg-background-dark text-slate-800 dark:text-slate-200">
+      {/* 移动端遮罩层：侧边栏展开时显示，用于点击关闭 */}
+      {isMobile && !isSidebarCollapsed && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40"
+          onClick={() => setIsSidebarCollapsed(true)}
+        />
+      )}
+
       <Sidebar 
         items={INITIAL_SIDEBAR_DATA} 
         isCollapsed={isSidebarCollapsed}
@@ -119,7 +137,11 @@ export default function Home() {
       />
       
       <main className="flex-1 flex flex-col min-w-0">
-        <Header />
+        <Header
+          // 移动端：通过 Header 左侧汉堡按钮控制侧边栏
+          // 桌面端：可忽略
+          toggleSidebar={() => setIsSidebarCollapsed(prev => !prev)}
+        />
         
         <div className="flex-1 overflow-y-auto scroll-smooth">
           <OutlineTree />

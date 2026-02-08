@@ -1,14 +1,18 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Folder, Save, Upload, Download, Sparkles, Settings } from 'lucide-react';
+import { Folder, Save, Upload, Download, Sparkles, Settings, Menu } from 'lucide-react';
 import { useEditorStore } from '@/lib/store';
 import { AIReorganizeModal } from '@/components/ai/AIReorganizeModal';
 import { SettingsModal } from '@/components/ui/SettingsModal';
 import { LineSpacingControl } from '@/components/LineSpacingControl';
 import { toastExportError, toastImportError } from '@/lib/toast';
 
-export const Header = React.memo(() => {
+interface HeaderProps {
+  toggleSidebar?: () => void;
+}
+
+export const Header = React.memo(({ toggleSidebar }: HeaderProps) => {
   const saveDocument = useEditorStore(s => s.saveDocument);
   const saveStatus = useEditorStore(s => s.saveStatus);
   const buildDocumentTree = useEditorStore(s => s.buildDocumentTree);
@@ -107,9 +111,17 @@ export const Header = React.memo(() => {
     <>
       <header className="h-14 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between px-6 shrink-0 bg-white dark:bg-background-dark z-10">
         <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 overflow-hidden">
-          <Folder size={14} />
-          <span className="whitespace-nowrap hover:underline cursor-pointer">我的文档</span>
-          <span className="text-slate-300 dark:text-slate-700">|</span>
+          {/* 移动端汉堡菜单：控制侧边栏 */}
+          <button
+            onClick={toggleSidebar}
+            className="lg:hidden p-2 mr-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700"
+            title="侧边栏"
+          >
+            <Menu size={18} />
+          </button>
+          <Folder size={14} className="hidden lg:inline" />
+          <span className="whitespace-nowrap hover:underline cursor-pointer hidden lg:inline">我的文档</span>
+          <span className="text-slate-300 dark:text-slate-700 hidden lg:inline">|</span>
           <span className="truncate">{title}</span>
         </div>
         

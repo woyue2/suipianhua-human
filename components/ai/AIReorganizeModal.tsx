@@ -163,8 +163,8 @@ export const AIReorganizeModal = React.memo(({ onClose }: AIReorganizeModalProps
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-slate-800 shadow-xl w-full max-w-full sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col rounded-none sm:rounded-lg">
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
           <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
             AI 智能重组
