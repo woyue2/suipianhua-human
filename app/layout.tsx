@@ -8,8 +8,12 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Tree Index - 大纲编辑器',
+  title: 'sniipet-huamn 碎片化人类',
   description: '基于 Next.js 的 AI 智能大纲整理工具',
+  icons: {
+    icon: '/icon.svg',
+    apple: '/icon.svg',
+  },
 }
 
 export default function RootLayout({
