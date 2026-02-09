@@ -23,11 +23,8 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
   const toggleCollapse = useEditorStore(s => s.toggleCollapse);
   const addChildNode = useEditorStore(s => s.addChildNode);
   const addSiblingNode = useEditorStore(s => s.addSiblingNode);
-  const deleteNode = useEditorStore(s => s.deleteNode);
   const indentNode = useEditorStore(s => s.indentNode);
   const outdentNode = useEditorStore(s => s.outdentNode);
-  const moveNodeUp = useEditorStore(s => s.moveNodeUp);
-  const moveNodeDown = useEditorStore(s => s.moveNodeDown);
   const focusedNodeId = useEditorStore(s => s.focusedNodeId);
   const setFocusedNodeId = useEditorStore(s => s.setFocusedNodeId);
   const updateNodeIcon = useEditorStore(s => s.updateNodeIcon);
@@ -39,8 +36,6 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
 
   const [isEditing, setIsEditing] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
-
-  const [isAIReorganizing, setIsAIReorganizing] = useState(false);
 
   // 自动聚焦新节点
   useEffect(() => {
@@ -87,44 +82,6 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
   const { renderFormattedText, storeSelection, applyFormat } = useNodeFormatting(nodeId);
   
   // 使用标签 Hook
-
-  // AI 智能整理处理函数
-  const handleAIReorganize = async () => {
-    if (!node.content.trim()) return;
-    
-    setIsAIReorganizing(true);
-    try {
-      const response = await fetch('/api/reorganize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: node.content }),
-      });
-
-      if (!response.ok) throw new Error('AI request failed');
-
-      const data = await response.json();
-      const result = data.analysis?.[0];
-
-      if (result) {
-        const reorganized = result.reorganized?.[0];
-        if (reorganized) {
-          // 1. 更新节点内容（去除标签等元数据）
-          updateContent(nodeId, reorganized.content);
-          
-          // 2. 如果有属性，可以在这里处理（目前先处理标签）
-          if (reorganized.attributes) {
-            // TODO: 这里可以根据需求将 attributes 转换为标签或其他元数据
-            // 目前先简单打印
-            console.log('Extracted attributes:', reorganized.attributes);
-          }
-        }
-      }
-    } catch (error) {
-      console.error('AI Reorganize failed:', error);
-    } finally {
-      setIsAIReorganizing(false);
-    }
-  };
 
   // 获取行间距设置
   const lineSpacing = useEditorStore(s => s.lineSpacing);
@@ -362,35 +319,17 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
         >
           {toolbarType === 'operation' ? (
             <>
-              <button onClick={() => addChildNode(nodeId)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="添加子节点 (Ctrl+Enter)">
-                <span className="text-lg">⤵️</span>
+              <button onClick={() => addChildNode(nodeId)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="添加子节点 (Ctrl+Enter)">
+                <span className="text-base">⤵️</span>
               </button>
-              <button onClick={() => addSiblingNode(nodeId)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="添加同级节点 (Enter)">
-                <span className="text-lg">➕</span>
+              <button onClick={() => addSiblingNode(nodeId)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="添加同级节点 (Enter)">
+                <span className="text-base">➕</span>
               </button>
-              <button onClick={() => indentNode(nodeId)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="缩进 (Tab)">
-                <span className="text-lg">→</span>
+              <button onClick={() => indentNode(nodeId)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="缩进 (Tab)">
+                <span className="text-base">→</span>
               </button>
-              <button onClick={() => outdentNode(nodeId)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="取消缩进 (Shift+Tab)">
-                <span className="text-lg">←</span>
-              </button>
-              <button onClick={() => moveNodeUp(nodeId)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="上移">
-                <span className="text-lg">↑</span>
-              </button>
-              <button onClick={() => moveNodeDown(nodeId)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="下移">
-                <span className="text-lg">↓</span>
-              </button>
-              <button onClick={() => deleteNode(nodeId)} className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 rounded transition-colors" title="删除">
-                <span className="text-lg">🗑</span>
-              </button>
-              <div className="w-px h-6 bg-slate-300 dark:bg-slate-600 mx-1" />
-              <button
-                onClick={handleAIReorganize}
-                disabled={isAIReorganizing}
-                className={`p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors ${isAIReorganizing ? 'animate-pulse' : ''}`}
-                title="AI 智能整理"
-              >
-                <span className="text-lg">✨</span>
+              <button onClick={() => outdentNode(nodeId)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="取消缩进 (Shift+Tab)">
+                <span className="text-base">←</span>
               </button>
               {!node.icon && (
                 <button 
@@ -398,10 +337,10 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
                     e.stopPropagation();
                     updateNodeIcon(nodeId, '📄');
                   }}
-                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
+                  className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
                   title="添加图标"
                 >
-                  <span className="text-lg">😊</span>
+                  <span className="text-base">😊</span>
                 </button>
               )}
               <ImageUploader nodeId={nodeId} />

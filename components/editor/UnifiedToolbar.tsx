@@ -22,7 +22,7 @@ export function UnifiedToolbar({
 }: UnifiedToolbarProps) {
   return (
     <div
-      className="fixed z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl p-0.5 flex items-center gap-0.5 transition-all duration-200 ease-out animate-in fade-in slide-in-from-bottom-2 opacity-50 hover:opacity-100"
+      className="fixed z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl p-0.5 flex items-center gap-0.5 transition-all duration-200 ease-out animate-in fade-in slide-in-from-bottom-2 opacity-50"
       style={{
         left: `${position.x}px`,
         transform: 'translateX(-50%)',
