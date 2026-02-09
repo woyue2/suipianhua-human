@@ -11,6 +11,7 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [rememberMe, setRememberMe] = useState(true) // 默认记住登录
   const { signIn, signUp, user, loading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -34,6 +35,14 @@ export default function LoginPage() {
         setIsSignUp(false)
       } else {
         await signIn(email, password)
+
+        // 如果选择记住登录，保存到 localStorage
+        if (rememberMe && email) {
+          localStorage.setItem('remembered-email', email)
+        } else {
+          localStorage.removeItem('remembered-email')
+        }
+
         router.replace(redirectTo)
       }
     } catch (err) {
@@ -70,6 +79,20 @@ export default function LoginPage() {
               required
             />
           </div>
+          {!isSignUp && (
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="remember-me"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
+                记住登录状态（30天免登录）
+              </label>
+            </div>
+          )}
           {error && <div className="text-red-600 text-sm">{error}</div>}
           {notice && <div className="text-blue-600 text-sm">{notice}</div>}
           <button

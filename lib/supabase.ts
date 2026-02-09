@@ -9,5 +9,12 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       apikey: supabaseAnonKey,
     },
   },
+  auth: {
+    persistSession: true,        // 持久化 session 到 localStorage
+    autoRefreshToken: true,      // 自动刷新 token
+    detectSessionInUrl: true,    // 从 URL 检测 session（OAuth 回调）
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    storageKey: 'sb-auth-token', // localStorage key
+  },
 })
 

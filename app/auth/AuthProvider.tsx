@@ -36,7 +36,14 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   }, [])
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+      options: {
+        // 设置 session 有效期为 30 天
+        expiresIn: 30 * 24 * 60 * 60, // 30 天（秒）
+      },
+    })
     if (error) throw error
   }
 
