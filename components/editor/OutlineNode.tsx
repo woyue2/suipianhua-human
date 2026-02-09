@@ -23,6 +23,7 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
   const toggleCollapse = useEditorStore(s => s.toggleCollapse);
   const addChildNode = useEditorStore(s => s.addChildNode);
   const addSiblingNode = useEditorStore(s => s.addSiblingNode);
+  const deleteNode = useEditorStore(s => s.deleteNode);
   const indentNode = useEditorStore(s => s.indentNode);
   const outdentNode = useEditorStore(s => s.outdentNode);
   const focusedNodeId = useEditorStore(s => s.focusedNodeId);
@@ -320,16 +321,16 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
           {toolbarType === 'operation' ? (
             <>
               <button onClick={() => addChildNode(nodeId)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="添加子节点 (Ctrl+Enter)">
-                <span className="text-base">⤵️</span>
+                <span className="text-sm">⤵️</span>
               </button>
               <button onClick={() => addSiblingNode(nodeId)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="添加同级节点 (Enter)">
-                <span className="text-base">➕</span>
+                <span className="text-sm">➕</span>
               </button>
               <button onClick={() => indentNode(nodeId)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="缩进 (Tab)">
-                <span className="text-base">→</span>
+                <span className="text-sm">→</span>
               </button>
               <button onClick={() => outdentNode(nodeId)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors" title="取消缩进 (Shift+Tab)">
-                <span className="text-base">←</span>
+                <span className="text-sm">←</span>
               </button>
               {!node.icon && (
                 <button 
@@ -340,7 +341,7 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
                   className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
                   title="添加图标"
                 >
-                  <span className="text-base">😊</span>
+                  <span className="text-sm">😊</span>
                 </button>
               )}
               <ImageUploader nodeId={nodeId} />
