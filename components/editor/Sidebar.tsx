@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Search, Plus, FileText,
   Trash2, LayoutTemplate, X, Edit2, RotateCcw, ChevronLeft
@@ -13,12 +13,11 @@ import { useAuth } from '@/app/auth/AuthProvider';
 import { toast } from 'sonner';
 
 interface SidebarProps {
-  items: SidebarItem[];
   isCollapsed: boolean;
   onToggleCollapse: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCollapse }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse }) => {
   // 所有 hooks 必须在任何条件返回之前调用
   const [searchQuery, setSearchQuery] = useState('');
   const [localItems, setLocalItems] = useState<SidebarItem[]>([]);
@@ -27,7 +26,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
   const [isEditingName, setIsEditingName] = useState(false);
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
   const [titleDraft, setTitleDraft] = useState('');
-  const [trashedItems, setTrashedItems] = useState<SidebarItem[]>([]);
+  const [trashedItems, setTrashedItems] = useState<Array<SidebarItem & { deletedAt: number }>>([]);
   const [showTrash, setShowTrash] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -39,6 +38,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
   const setTitle = useEditorStore(s => s.setTitle);
   const currentDocumentId = useEditorStore(s => s.documentId);
   const { user } = useAuth();
+  const LAST_OPEN_DOC_KEY = 'last-open-document-id';
+
+  // 格式化删除时间显示
+  const formatDeletedTime = (deletedAt: number): string => {
+    const now = Date.now();
+    const diff = now - deletedAt;
+    const minutes = Math.floor(diff / (1000 * 60));
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+    if (minutes < 1) return '刚刚删除';
+    if (minutes < 60) return `${minutes}分钟前删除`;
+    if (hours < 24) return `${hours}小时前删除`;
+    if (days < 30) return `${days}天前删除`;
+
+    const date = new Date(deletedAt);
+    return `${date.getMonth() + 1}/${date.getDate()} 删除`;
+  };
 
   // ✅ 从 IndexedDB 加载文档列表
   useEffect(() => {
@@ -50,22 +67,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
     loadDocumentList();
   }, [fetchDocuments]);
 
-  // ✅ 将 store 中的 documents 转换为 SidebarItem 格式
-  useEffect(() => {
-    const items: SidebarItem[] = documents.map(doc => ({
-      id: doc.id,
-      title: doc.title,
-      emoji: '📄',
-      isActive: false,
-    }));
-    setLocalItems(items);
-    
-    // 如果还没有选中的文档且有文档列表，自动选中第一个
-    if (!activeItemId && items.length > 0) {
-      setActiveItemId(items[0].id);
-      handleSelectDocument(items[0].id);
-    }
-  }, [documents]);
 
   // 搜索过滤
   const filteredItems = useMemo(() => {
@@ -133,7 +134,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
   };
 
   // 切换文档 - ✅ 修复：从 IndexedDB 加载文档数据
-  const handleSelectDocument = async (itemId: string) => {
+  const handleSelectDocument = useCallback(async (itemId: string) => {
     // 如果当前有正在编辑的文档，先保存当前文档
     if (activeItemId && activeItemId !== itemId) {
       await saveDocument();
@@ -158,6 +159,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
       
       // 更新 UI 状态
       setActiveItemId(itemId);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(LAST_OPEN_DOC_KEY, itemId);
+      }
       setLocalItems(prev => prev.map(item => ({
         ...item,
         isActive: item.id === itemId
@@ -168,39 +172,108 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
       console.error('❌ Failed to load document:', error);
       toast.error('文档加载失败');
     }
-  };
+  }, [activeItemId, loadDocument, saveDocument, user?.id]);
+
+  // ✅ 将 store 中的 documents 转换为 SidebarItem 格式
+  useEffect(() => {
+    const activeDocs = documents.filter(doc => !doc.deletedAt);
+    const trashedDocs = documents.filter(doc => doc.deletedAt);
+    const items: SidebarItem[] = activeDocs.map(doc => ({
+      id: doc.id,
+      title: doc.title,
+      emoji: doc.icon || '📄',
+      isActive: false,
+    }));
+    // 按删除时间倒序排列（最新的在上面）
+    const trashItems: Array<SidebarItem & { deletedAt: number }> = trashedDocs
+      .sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0))
+      .map(doc => ({
+      id: doc.id,
+      title: doc.title,
+      emoji: doc.icon || '📄',
+      isActive: false,
+      deletedAt: doc.deletedAt!,
+    }));
+    setLocalItems(items);
+    setTrashedItems(trashItems);
+
+    const activeIsTrashed = activeItemId && trashedDocs.some(doc => doc.id === activeItemId);
+    if (activeIsTrashed) {
+      setActiveItemId('');
+    }
+    if ((!activeItemId || activeIsTrashed) && items.length > 0) {
+      const lastOpenId = typeof window !== 'undefined'
+        ? localStorage.getItem(LAST_OPEN_DOC_KEY)
+        : null;
+      const fallbackId = lastOpenId && items.some(item => item.id === lastOpenId)
+        ? lastOpenId
+        : items[0].id;
+      setActiveItemId(fallbackId);
+      handleSelectDocument(fallbackId);
+    }
+  }, [documents, activeItemId, handleSelectDocument]);
 
   // 删除文档（移到回收站）
   const handleDeleteDocument = (itemId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    
-    const item = localItems.find(i => i.id === itemId);
-    if (!item) return;
-    
-    setTrashedItems(prev => [...prev, { ...item, isActive: false }]);
-    setLocalItems(prev => prev.filter(i => i.id !== itemId));
-    
-    if (itemId === activeItemId && localItems.length > 1) {
-      const remainingItems = localItems.filter(i => i.id !== itemId);
-      if (remainingItems.length > 0) {
-        handleSelectDocument(remainingItems[0].id);
+    const moveToTrash = async () => {
+      try {
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        const document = (url && key && user?.id)
+          ? await supabaseDocumentDb.loadDocument(itemId)
+          : await documentDb.loadDocument(itemId);
+        if (!document) {
+          toast.error('文档加载失败：未找到文档');
+          return;
+        }
+        document.metadata.deletedAt = Date.now();
+        if (url && key && user?.id) {
+          await supabaseDocumentDb.saveDocument(document, user.id);
+        } else {
+          await documentDb.saveDocument(document);
+        }
+        if (itemId === activeItemId) {
+          setActiveItemId('');
+        }
+        await fetchDocuments();
+        console.log('🗑️ Moved to trash:', document.title);
+      } catch (error) {
+        console.error('❌ Failed to move to trash:', error);
+        toast.error('移动到回收站失败');
       }
-    }
-    
-    console.log('🗑️ Moved to trash:', item.title);
+    };
+    moveToTrash();
   };
 
   // 从回收站恢复
   const handleRestoreDocument = (itemId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    
-    const item = trashedItems.find(i => i.id === itemId);
-    if (!item) return;
-    
-    setLocalItems(prev => [...prev, item]);
-    setTrashedItems(prev => prev.filter(i => i.id !== itemId));
-    
-    console.log('♻️ Restored from trash:', item.title);
+    const restoreFromTrash = async () => {
+      try {
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        const document = (url && key && user?.id)
+          ? await supabaseDocumentDb.loadDocument(itemId)
+          : await documentDb.loadDocument(itemId);
+        if (!document) {
+          toast.error('文档加载失败：未找到文档');
+          return;
+        }
+        document.metadata.deletedAt = null;
+        if (url && key && user?.id) {
+          await supabaseDocumentDb.saveDocument(document, user.id);
+        } else {
+          await documentDb.saveDocument(document);
+        }
+        await fetchDocuments();
+        console.log('♻️ Restored from trash:', document.title);
+      } catch (error) {
+        console.error('❌ Failed to restore document:', error);
+        toast.error('恢复失败');
+      }
+    };
+    restoreFromTrash();
   };
 
   // 永久删除
@@ -250,18 +323,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
           try {
             const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
             const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+            const trashIds = trashedItems.map(item => item.id);
             if (url && key && user?.id) {
-              await supabaseDocumentDb.deleteDocuments(
-                trashedItems.map(item => item.id),
-                user.id
-              );
-              await fetchDocuments();
+              await supabaseDocumentDb.deleteDocuments(trashIds, user.id);
             } else {
-              await Promise.all(
-                trashedItems.map(item => documentDb.deleteDocument(item.id))
-              );
+              await Promise.all(trashIds.map(itemId => documentDb.deleteDocument(itemId)));
             }
-            setTrashedItems([]);
+            await fetchDocuments();
             console.log('🗑️ Trash emptied');
             toast.success('回收站已清空（已永久删除）');
           } catch (error) {
@@ -340,13 +408,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
     <>
       <button
         onClick={onToggleCollapse}
-        className="fixed left-60 top-4 w-8 h-8 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors z-50 shadow-lg"
+        className="fixed left-60 top-4 w-8 h-8 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors z-[51] shadow-lg"
         title="折叠侧边栏"
       >
         <ChevronLeft size={16} />
       </button>
 
-      <aside className="w-64 h-full bg-sidebar-light dark:bg-sidebar-dark border-r border-slate-200 dark:border-slate-800 flex flex-col shrink-0">
+      <aside className="fixed inset-y-0 left-0 z-50 w-64 h-full bg-sidebar-light dark:bg-sidebar-dark border-r border-slate-200 dark:border-slate-800 flex flex-col shrink-0 lg:static lg:z-auto transition-transform duration-300">
         <div className="p-4 flex items-center justify-between">
           <div className="flex items-center gap-2 group flex-1 min-w-0">
             <div className="w-6 h-6 bg-slate-800 dark:bg-white rounded flex items-center justify-center flex-shrink-0">
@@ -505,7 +573,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
                 </div>
               ) : (
                 trashedItems.map(item => (
-                  <div 
+                  <div
                     key={item.id}
                     className="group flex items-center gap-3 px-3 py-2 rounded-md text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800/50 transition-colors"
                   >
@@ -516,8 +584,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ items, isCollapsed, onToggleCo
                         <FileText size={16} />
                       )}
                     </div>
-                    <span className="truncate flex-1 line-through opacity-70">{item.title}</span>
-                    
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate line-through opacity-70">{item.title}</div>
+                      <div className="text-[10px] text-slate-400">
+                        {formatDeletedTime(item.deletedAt)}
+                      </div>
+                    </div>
+
                     <div className="opacity-0 group-hover:opacity-100 flex gap-1">
                       <button
                         onClick={(e) => handleRestoreDocument(item.id, e)}

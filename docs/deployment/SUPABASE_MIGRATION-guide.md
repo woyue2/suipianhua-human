@@ -49,6 +49,11 @@ CREATE TABLE documents (
 CREATE INDEX idx_documents_user_id ON documents(user_id);
 CREATE INDEX idx_documents_updated_at ON documents(updated_at DESC);
 
+-- 回收站优化索引：加速 metadata->deletedAt 查询
+CREATE INDEX idx_documents_metadata_deleted_at ON documents USING GIN (metadata jsonb_path_ops);
+-- 或者使用更精确的表达式索引（推荐）
+CREATE INDEX idx_documents_deleted_at ON documents ((metadata->>'deletedAt')) WHERE (metadata->>'deletedAt') IS NOT NULL;
+
 -- 启用行级安全（RLS）
 ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
 
@@ -500,13 +505,23 @@ migrate()
 
 - [ ] 创建文档
 - [ ] 编辑文档
-- [ ] 删除文档
+- [ ] 删除文档（软删除到回收站）
+- [ ] 从回收站恢复文档
+- [ ] 永久删除文档
+- [ ] 清空回收站
 - [ ] 搜索文档
 - [ ] 多设备同步
 - [ ] 登录/登出
 - [ ] 实时更新
+- [ ] 自动清理（30天后）
 
 ## 常见问题
+
+### Q: 回收站中的文档会占用存储空间吗？
+A: 会的。建议定期清理回收站，系统会自动删除超过30天的文档，或最多保留50个。
+
+### Q: 如何查看回收站中的文档？
+A: 在侧边栏底部点击"回收站"按钮即可查看。
 
 ### Q: 迁移后原来的数据怎么办？
 A: 可以保留 IndexedDB 作为本地缓存，或者导出后删除。
@@ -526,6 +541,54 @@ A: 网络请求会有延迟（50-200ms），但可以用乐观更新优化。
 2. **本地缓存**：结合 IndexedDB 做离线支持
 3. **批量操作**：减少网络请求次数
 4. **懒加载**：只加载需要的数据
+
+## 回收站功能
+
+### 功能特性
+
+本应用内置完整的回收站功能：
+
+| 功能 | 说明 |
+|------|------|
+| 软删除 | 删除文档时移到回收站，不是永久删除 |
+| 恢复文档 | 可从回收站恢复文档 |
+| 永久删除 | 彻底删除文档（不可恢复） |
+| 清空回收站 | 批量删除所有回收站文档 |
+| 自动清理 | 超过30天的文档自动永久删除 |
+| 容量限制 | 回收站最多保存50个文档 |
+
+### 数据库层面
+
+回收站使用 `metadata.deletedAt` 字段（已存在于 JSONB 中），无需额外修改表结构。
+
+**如果你已经创建了数据库**，只需添加性能优化索引：
+
+```sql
+-- 在 Supabase Dashboard → SQL Editor 中执行
+CREATE INDEX IF NOT EXISTS idx_documents_deleted_at
+ON documents ((metadata->>'deletedAt'))
+WHERE (metadata->>'deletedAt') IS NOT NULL;
+```
+
+这个索引会加速：
+- 查询回收站文档
+- 按删除时间排序
+- 自动清理过期文档
+
+### API 方法
+
+新增的回收站相关方法（已在 `lib/supabase-db.ts` 中实现）：
+
+```typescript
+// 获取回收站列表
+await supabaseDocumentDb.listTrashedDocuments(userId)
+
+// 自动清理超过30天的文档
+await supabaseDocumentDb.cleanupOldTrash(userId)
+
+// 强制执行容量限制（50个）
+await supabaseDocumentDb.enforceTrashLimit(userId)
+```
 
 ## 总结
 

@@ -1,5 +1,5 @@
 import Dexie, { Table } from 'dexie';
-import { Document, StoredOutlineNode, OutlineNode } from '@/types';
+import { Document, OutlineNode } from '@/types';
 
 // 定义 IndexedDB 表结构
 interface DocumentRecord {
@@ -10,6 +10,8 @@ interface DocumentRecord {
     createdAt: number;
     updatedAt: number;
     version: string;
+    deletedAt?: number | null;
+    icon?: string;
   };
   createdAt: number;
   updatedAt: number;
@@ -41,7 +43,7 @@ export class OutlineDatabase extends Dexie {
 // 文档数据迁移逻辑
 const DOCUMENT_VERSION = '1.0.0';
 
-const migrations: Record<string, (doc: any) => any> = {
+const migrations: Record<string, (doc: Document) => Document> = {
   // 示例：将 0.9.0 迁移到 1.0.0
   // '0.9.0': (doc) => {
   //   doc.metadata.version = '1.0.0';
@@ -63,12 +65,20 @@ function compareVersions(v1: string, v2: string): number {
   return 0;
 }
 
-function migrateDocument(doc: any): Document {
-  if (!doc.metadata || !doc.metadata.version) {
-    doc.metadata = { ...doc.metadata, version: '0.0.0' };
-  }
+function migrateDocument(doc: Document): Document {
+  let currentDoc: Document = {
+    id: doc.id,
+    title: doc.title || '未命名',
+    root: doc.root,
+    metadata: {
+      createdAt: doc.metadata.createdAt ?? Date.now(),
+      updatedAt: doc.metadata.updatedAt ?? Date.now(),
+      version: doc.metadata.version ?? '0.0.0',
+      deletedAt: doc.metadata.deletedAt ?? null,
+    },
+  };
 
-  const currentVersion = doc.metadata.version;
+  const currentVersion = currentDoc.metadata.version;
   
   // 如果当前版本低于目标版本
   if (compareVersions(currentVersion, DOCUMENT_VERSION) < 0) {
@@ -83,10 +93,10 @@ function migrateDocument(doc: any): Document {
           compareVersions(version, DOCUMENT_VERSION) <= 0) {
         try {
           console.log(`Applying migration to version ${version}`);
-          doc = migrations[version](doc);
-          doc.metadata.version = version;
+          currentDoc = migrations[version](currentDoc);
+          currentDoc.metadata.version = version;
         } catch (error) {
-          console.error(`Migration to version ${version} failed for document ${doc.id}:`, error);
+          console.error(`Migration to version ${version} failed for document ${currentDoc.id}:`, error);
           // 可以在这里决定是中断还是继续，通常应该中断并报错
           throw error;
         }
@@ -94,13 +104,20 @@ function migrateDocument(doc: any): Document {
     }
     
     // 如果没有特定迁移需要应用（仅版本号更新），或者迁移后版本未更新到最新
-    if (doc.metadata.version !== DOCUMENT_VERSION) {
-       doc.metadata.version = DOCUMENT_VERSION;
+    if (currentDoc.metadata.version !== DOCUMENT_VERSION) {
+       currentDoc.metadata.version = DOCUMENT_VERSION;
     }
   }
 
-  return doc as Document;
+  return currentDoc;
 }
+
+// 回收站配置
+const TRASH_CONFIG = {
+  MAX_TRASH_SIZE: 50,        // 最多保存50个已删除文档
+  AUTO_DELETE_DAYS: 30,      // 30天后自动永久删除
+  CLEANUP_KEY: 'lastTrashCleanup', // 上次清理时间
+};
 
 // 创建数据库实例
 export const db = new OutlineDatabase();
@@ -118,6 +135,11 @@ export const documentDb = {
         createdAt: document.metadata.createdAt,
         updatedAt: now,
       };
+
+      // 如果文档被移到回收站，检查容量限制
+      if (document.metadata.deletedAt) {
+        await this.enforceTrashLimit();
+      }
 
       await db.documents.put(record);
       console.log('Document saved successfully:', document.id);
@@ -147,6 +169,7 @@ export const documentDb = {
           createdAt: record.createdAt,
           updatedAt: record.updatedAt,
           version: record.metadata.version,
+          deletedAt: record.metadata.deletedAt ?? null,
         },
       };
 
@@ -161,14 +184,19 @@ export const documentDb = {
    * 获取所有文档列表
    * Returns array of { id, title, updatedAt } sorted by updatedAt descending
    */
-  async listDocuments(): Promise<Array<{ id: string; title: string; updatedAt: number }>> {
+  async listDocuments(): Promise<Array<{ id: string; title: string; updatedAt: number; deletedAt?: number | null; icon?: string }>> {
     try {
+      // 自动执行定期清理（每天一次）
+      await this.periodicCleanup();
+
       const docs = await db.documents.toArray();
       return docs
         .map(doc => ({
           id: doc.id,
           title: doc.title,
           updatedAt: doc.updatedAt,
+          deletedAt: doc.metadata.deletedAt ?? null,
+          icon: doc.root.icon || doc.metadata.icon,
         }))
         .sort((a, b) => b.updatedAt - a.updatedAt);
     } catch (error) {
@@ -200,6 +228,89 @@ export const documentDb = {
     } catch (error) {
       console.error('Failed to clear documents:', error);
       throw error;
+    }
+  },
+
+  /**
+   * 获取回收站中的文档列表（按删除时间倒序）
+   */
+  async listTrashedDocuments(): Promise<Array<{ id: string; title: string; deletedAt: number }>> {
+    try {
+      const docs = await db.documents.toArray();
+      return docs
+        .filter(doc => doc.metadata.deletedAt)
+        .map(doc => ({
+          id: doc.id,
+          title: doc.title,
+          deletedAt: doc.metadata.deletedAt!,
+        }))
+        .sort((a, b) => b.deletedAt - a.deletedAt);
+    } catch (error) {
+      console.error('Failed to list trashed documents:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * 清理超过指定天数的回收站文档（自动清理）
+   */
+  async cleanupOldTrash(): Promise<number> {
+    try {
+      const now = Date.now();
+      const threshold = now - (TRASH_CONFIG.AUTO_DELETE_DAYS * 24 * 60 * 60 * 1000);
+      const trashedDocs = await this.listTrashedDocuments();
+      const toDelete = trashedDocs.filter(doc => doc.deletedAt < threshold);
+
+      if (toDelete.length > 0) {
+        const ids = toDelete.map(d => d.id);
+        for (const id of ids) {
+          await db.documents.delete(id);
+        }
+        console.log(`🗑️ Auto-cleaned ${toDelete.length} trashed documents (older than ${TRASH_CONFIG.AUTO_DELETE_DAYS} days)`);
+      }
+
+      return toDelete.length;
+    } catch (error) {
+      console.error('Failed to cleanup old trash:', error);
+      return 0;
+    }
+  },
+
+  /**
+   * 强制执行回收站容量限制（删除最旧的文档）
+   */
+  async enforceTrashLimit(): Promise<number> {
+    try {
+      const trashedDocs = await this.listTrashedDocuments();
+
+      if (trashedDocs.length > TRASH_CONFIG.MAX_TRASH_SIZE) {
+        const toDelete = trashedDocs.slice(TRASH_CONFIG.MAX_TRASH_SIZE);
+        for (const doc of toDelete) {
+          await db.documents.delete(doc.id);
+        }
+        console.log(`📦 Enforced trash limit: removed ${toDelete.length} oldest documents (limit: ${TRASH_CONFIG.MAX_TRASH_SIZE})`);
+        return toDelete.length;
+      }
+
+      return 0;
+    } catch (error) {
+      console.error('Failed to enforce trash limit:', error);
+      return 0;
+    }
+  },
+
+  /**
+   * 定期清理检查（在合适时机调用）
+   */
+  async periodicCleanup(): Promise<void> {
+    const lastCleanup = localStorage.getItem(TRASH_CONFIG.CLEANUP_KEY);
+    const now = Date.now();
+    const ONE_DAY = 24 * 60 * 60 * 1000;
+
+    // 每天执行一次清理
+    if (!lastCleanup || (now - parseInt(lastCleanup)) > ONE_DAY) {
+      await this.cleanupOldTrash();
+      localStorage.setItem(TRASH_CONFIG.CLEANUP_KEY, now.toString());
     }
   },
 };
