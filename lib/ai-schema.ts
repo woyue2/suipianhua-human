@@ -1,14 +1,16 @@
 import { z } from 'zod';
 
-export const AIOutlineNodeSchema: z.ZodType<{
+export type AIOutlineNode = {
   content: string;
   isHeader?: boolean;
   isSubHeader?: boolean;
   tags?: string[];
   isItalic?: boolean;
   icon?: string;
-  children: any[];
-}> = z.object({
+  children: AIOutlineNode[];
+};
+
+export const AIOutlineNodeSchema: z.ZodType<AIOutlineNode> = z.object({
   content: z.string(),
   isHeader: z.boolean().optional(),
   isSubHeader: z.boolean().optional(),

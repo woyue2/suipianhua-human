@@ -2,7 +2,6 @@ import React, { memo } from 'react';
 
 interface NodeBulletProps {
   hasChildren: boolean;
-  isCollapsed: boolean;
   onClick: () => void;
 }
 
@@ -12,7 +11,6 @@ interface NodeBulletProps {
  */
 export const NodeBullet = memo(function NodeBullet({
   hasChildren,
-  isCollapsed,
   onClick,
 }: NodeBulletProps) {
   const bulletClass = hasChildren
@@ -21,4 +19,3 @@ export const NodeBullet = memo(function NodeBullet({
 
   return <div onClick={onClick} className={bulletClass} />;
 });
-

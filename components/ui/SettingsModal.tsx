@@ -14,12 +14,27 @@ export const SettingsModal = React.memo<SettingsModalProps>(({ onClose }) => {
   const toggleDarkMode = useEditorStore(s => s.toggleDarkMode);
 
   const [localAutoSave, setLocalAutoSave] = useState(autoSaveEnabled);
+  const [localDarkMode, setLocalDarkMode] = useState(isDarkMode);
+
+  useEffect(() => {
+    setLocalAutoSave(autoSaveEnabled);
+    setLocalDarkMode(isDarkMode);
+  }, [autoSaveEnabled, isDarkMode]);
 
   const handleSave = () => {
     // 保存设置到 store
     if (localAutoSave !== autoSaveEnabled) {
       setAutoSaveEnabled(localAutoSave);
     }
+    if (localDarkMode !== isDarkMode) {
+      toggleDarkMode();
+    }
+    onClose();
+  };
+
+  const handleCancel = () => {
+    setLocalAutoSave(autoSaveEnabled);
+    setLocalDarkMode(isDarkMode);
     onClose();
   };
 
@@ -68,14 +83,14 @@ export const SettingsModal = React.memo<SettingsModalProps>(({ onClose }) => {
               </div>
             </div>
             <button
-              onClick={toggleDarkMode}
+              onClick={() => setLocalDarkMode(!localDarkMode)}
               className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                isDarkMode ? 'bg-primary' : 'bg-slate-200 dark:bg-slate-700'
+                localDarkMode ? 'bg-primary' : 'bg-slate-200 dark:bg-slate-700'
               }`}
             >
               <span
                 className={`${
-                  isDarkMode ? 'translate-x-5' : 'translate-x-0'
+                  localDarkMode ? 'translate-x-5' : 'translate-x-0'
                 } pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out`}
               />
             </button>
@@ -98,7 +113,7 @@ export const SettingsModal = React.memo<SettingsModalProps>(({ onClose }) => {
 
         <div className="px-4 sm:px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
           <button
-            onClick={onClose}
+            onClick={handleCancel}
             className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors"
           >
             取消

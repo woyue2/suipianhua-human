@@ -102,7 +102,7 @@ export function parseAndValidateHeaders<T>(
   headerMapping: Record<string, string>
 ): T {
   const headers = req.headers;
-  const config: Record<string, any> = {};
+  const config: Record<string, string | undefined> = {};
 
   for (const [key, headerName] of Object.entries(headerMapping)) {
     const value = headers.get(headerName);
@@ -121,7 +121,7 @@ export function parseAndValidateQuery<T>(
   schema: ZodSchema<T>
 ): T {
   const { searchParams } = new URL(req.url);
-  const query: Record<string, any> = {};
+  const query: Record<string, string | number> = {};
 
   searchParams.forEach((value, key) => {
     // 尝试解析数字
@@ -198,4 +198,3 @@ export function validateFileUpload(
     );
   }
 }
-

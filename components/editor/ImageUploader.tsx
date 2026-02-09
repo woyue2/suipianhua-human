@@ -3,7 +3,8 @@
 import { useState, useRef } from 'react';
 import { useEditorStore } from '@/lib/store';
 import { ImageAttachment } from '@/types';
-import { toastSuccess, toastError } from '@/lib/toast';
+import { toastSuccess } from '@/lib/toast';
+import { ImageUploadConfigSchema } from '@/lib/validation';
 
 interface ImageUploaderProps {
   nodeId: string;
@@ -21,9 +22,12 @@ async function compressImage(
   file: File,
   maxSize: number = 1 * 1024 * 1024, // 1MB
   maxWidth: number = 1920,
+  maxHeight: number = 1920,
   quality: number = 0.9
 ): Promise<File> {
-  // 如果文件已经小于最大尺寸，直接返回
+  if (file.type === 'image/gif') {
+    return file;
+  }
   if (file.size <= maxSize) {
     return file;
   }
@@ -49,9 +53,12 @@ async function compressImage(
       let width = img.width;
       let height = img.height;
 
-      if (width > maxWidth) {
-        height = (height * maxWidth) / width;
-        width = maxWidth;
+      const widthRatio = maxWidth / width;
+      const heightRatio = maxHeight / height;
+      const scale = Math.min(1, widthRatio, heightRatio);
+      if (scale < 1) {
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
       }
 
       canvas.width = width;
@@ -60,8 +67,19 @@ async function compressImage(
       // 绘制压缩后的图片
       ctx.drawImage(img, 0, 0, width, height);
 
-      // 逐步降低质量直到文件大小满足要求
-      let currentQuality = quality;
+      const outputType =
+        file.type === 'image/webp'
+          ? file.type
+          : 'image/jpeg';
+      const outputName = (() => {
+        if (outputType === file.type) return file.name;
+        const ext = outputType === 'image/jpeg' ? 'jpg' : outputType.split('/')[1];
+        const base = file.name.includes('.') ? file.name.replace(/\.[^/.]+$/, '') : file.name;
+        return `${base}.${ext}`;
+      })();
+
+      const useQuality = outputType === 'image/jpeg' || outputType === 'image/webp';
+      let currentQuality = useQuality ? quality : 1;
       const minQuality = 0.1;
       const qualityStep = 0.1;
 
@@ -73,22 +91,27 @@ async function compressImage(
               return;
             }
 
-            // 如果文件大小符合要求，或质量已降到最低
             if (blob.size <= maxSize || currentQuality <= minQuality) {
               const compressedFile = new File(
                 [blob],
-                file.name,
-                { type: 'image/jpeg', lastModified: Date.now() }
+                outputName,
+                { type: outputType, lastModified: Date.now() }
               );
               resolve(compressedFile);
             } else {
-              // 继续降低质量
-              currentQuality -= qualityStep;
+              if (useQuality) {
+                currentQuality -= qualityStep;
+              } else {
+                currentQuality = minQuality;
+              }
+              if (currentQuality < minQuality) {
+                currentQuality = minQuality;
+              }
               tryCompress();
             }
           },
-          'image/jpeg',
-          currentQuality
+          outputType,
+          useQuality ? currentQuality : undefined
         );
       };
 
@@ -122,7 +145,17 @@ export function ImageUploader({ nodeId, onUploadComplete }: ImageUploaderProps) 
 
     try {
       // 压缩图片到 1MB 以内
-      const compressedFile = await compressImage(file, 1 * 1024 * 1024);
+      const compressedFile = await compressImage(file, 1 * 1024 * 1024, 1920, 1920);
+      let imageWidth = 0;
+      let imageHeight = 0;
+      try {
+        const imageBitmap = await createImageBitmap(compressedFile);
+        imageWidth = imageBitmap.width;
+        imageHeight = imageBitmap.height;
+        imageBitmap.close();
+      } catch (error) {
+        console.warn('获取图片尺寸失败:', error);
+      }
 
       // 显示压缩信息
       if (compressedFile.size < file.size) {
@@ -133,21 +166,31 @@ export function ImageUploader({ nodeId, onUploadComplete }: ImageUploaderProps) 
 
       // 从 localStorage 获取图床配置（可选）
       const configStr = localStorage.getItem('user-config');
-      const config = configStr ? JSON.parse(configStr) : null;
+      const configRaw = configStr ? JSON.parse(configStr) : null;
+      const configResult = ImageUploadConfigSchema.safeParse(configRaw?.imageUpload ?? configRaw);
+      if (configRaw && !configResult.success) {
+        const message = configResult.error.errors[0]?.message || '图床配置不正确';
+        throw new Error(message);
+      }
+      const config = configResult.success ? configResult.data : null;
 
       const formData = new FormData();
       formData.append('file', compressedFile);
 
       const headers: Record<string, string> = {};
 
+      if (config?.provider === 'custom' && !config.customUrl) {
+        throw new Error('自定义图床未填写上传地址');
+      }
+
       // 如果用户配置了图床，使用用户配置
-      if (config?.imageUpload) {
-        headers['x-image-provider'] = config.imageUpload.provider || 'imgur';
-        if (config.imageUpload.apiKey) {
-          headers['x-image-api-key'] = config.imageUpload.apiKey;
+      if (config) {
+        headers['x-image-provider'] = config.provider || 'imgur';
+        if (config.apiKey) {
+          headers['x-image-api-key'] = config.apiKey;
         }
-        if (config.imageUpload.customUrl) {
-          headers['x-image-custom-url'] = config.imageUpload.customUrl;
+        if (config.customUrl) {
+          headers['x-image-custom-url'] = config.customUrl;
         }
       }
       // 否则服务端会使用环境变量中的 API Key
@@ -168,8 +211,8 @@ export function ImageUploader({ nodeId, onUploadComplete }: ImageUploaderProps) 
       const imageAttachment: ImageAttachment = {
         id: crypto.randomUUID(),
         url: result.data.url,
-        width: 0, // 实际宽高可以在图片加载后获取
-        height: 0,
+        width: imageWidth,
+        height: imageHeight,
         uploadedAt: Date.now(),
       };
 
@@ -189,7 +232,6 @@ export function ImageUploader({ nodeId, onUploadComplete }: ImageUploaderProps) 
       console.error('上传失败:', err);
       const errorMsg = err instanceof Error ? err.message : '上传失败';
       setError(errorMsg);
-      toastError(errorMsg);
       setTimeout(() => setError(null), 3000);
     } finally {
       setUploading(false);

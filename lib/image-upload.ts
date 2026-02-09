@@ -22,8 +22,10 @@ export const IMAGE_PROVIDERS: Record<
     headers: (cfg) => cfg.apiKey ? { Authorization: `Bearer ${cfg.apiKey}` } : {} as Record<string, string> as Record<string, string>,
     formFieldName: 'file',
     parseResponse: (data: unknown) => {
-      const d = data as { code?: number; data?: { url?: string; link?: string } } | undefined;
+      const d = data as { code?: number; data?: { url?: string; link?: string; image?: { url?: string } } } | undefined;
       if (d?.code === 200 && d?.data?.url) return { url: d.data.url };
+      if (d?.code === 200 && d?.data?.link) return { url: d.data.link };
+      if (d?.code === 200 && d?.data?.image?.url) return { url: d.data.image.url };
       return null;
     },
   },
@@ -33,8 +35,10 @@ export const IMAGE_PROVIDERS: Record<
     headers: (cfg) => cfg.apiKey ? { Authorization: cfg.apiKey } : {} as Record<string, string> as Record<string, string>,
     formFieldName: 'smfile',
     parseResponse: (data: unknown) => {
-      const d = data as { success?: boolean; data?: { url?: string } } | undefined;
+      const d = data as { success?: boolean; data?: { url?: string; image?: { url?: string } }; images?: string } | undefined;
       if (d?.success && d.data?.url) return { url: d.data.url };
+      if (d?.success && d.data?.image?.url) return { url: d.data.image.url };
+      if (d?.success && d.images) return { url: d.images };
       return null;
     },
   },

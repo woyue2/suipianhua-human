@@ -1,8 +1,7 @@
 import React, { memo } from 'react';
 
 interface NodeChildrenProps {
-  nodeId: string;
-  children: string[];
+  childIds: string[];
   depth: number;
   renderNode: (childId: string, depth: number) => React.ReactNode;
 }
@@ -12,19 +11,17 @@ interface NodeChildrenProps {
  * 递归渲染子节点
  */
 export const NodeChildren = memo(function NodeChildren({
-  nodeId,
-  children,
+  childIds,
   depth,
   renderNode,
 }: NodeChildrenProps) {
-  if (!children || children.length === 0) {
+  if (!childIds || childIds.length === 0) {
     return null;
   }
 
   return (
     <div className="ml-1 pl-6 mt-2 border-l-2 border-slate-100 dark:border-slate-800">
-      {children.map(childId => renderNode(childId, depth + 1))}
+      {childIds.map(childId => renderNode(childId, depth + 1))}
     </div>
   );
 });
-

@@ -6,11 +6,121 @@ import { useEditorStore } from '@/lib/store';
 import { AIReorganizeModal } from '@/components/ai/AIReorganizeModal';
 import { SettingsModal } from '@/components/ui/SettingsModal';
 import { LineSpacingControl } from '@/components/LineSpacingControl';
-import { toastExportError, toastImportError } from '@/lib/toast';
+import { toastExportError, toastExportSuccess, toastImportError, toastImportSuccess } from '@/lib/toast';
+import { Document, OutlineNode, ImageAttachment } from '@/types';
+import { LINE_SPACING_CONFIG, LineSpacingType } from '@/lib/constants';
 
 interface HeaderProps {
   toggleSidebar?: () => void;
 }
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const normalizeImageAttachment = (image: unknown, now: number): ImageAttachment | null => {
+  if (!isRecord(image)) return null;
+  const url = typeof image.url === 'string' ? image.url : '';
+  if (!url) return null;
+  return {
+    id: typeof image.id === 'string' ? image.id : crypto.randomUUID(),
+    url,
+    thumbnail: typeof image.thumbnail === 'string' ? image.thumbnail : undefined,
+    width: typeof image.width === 'number' ? image.width : 0,
+    height: typeof image.height === 'number' ? image.height : 0,
+    alt: typeof image.alt === 'string' ? image.alt : undefined,
+    caption: typeof image.caption === 'string' ? image.caption : undefined,
+    uploadedAt: typeof image.uploadedAt === 'number' ? image.uploadedAt : now,
+  };
+};
+
+const isLineSpacing = (value: unknown): value is LineSpacingType =>
+  typeof value === 'string' && value in LINE_SPACING_CONFIG;
+
+const normalizeOutlineNode = (
+  node: unknown,
+  parentId: string | null,
+  level: number,
+  now: number,
+  usedIds: Set<string>
+): OutlineNode => {
+  const nodeRecord = isRecord(node) ? node : {};
+  const preferredId = typeof nodeRecord.id === 'string' ? nodeRecord.id : crypto.randomUUID();
+  const nodeId = usedIds.has(preferredId) ? crypto.randomUUID() : preferredId;
+  usedIds.add(nodeId);
+  const rawChildren = Array.isArray(nodeRecord.children) ? nodeRecord.children : [];
+  const children = rawChildren
+    .filter(child => child && typeof child === 'object')
+    .map(child => normalizeOutlineNode(child, nodeId, level + 1, now, usedIds));
+  const rawImages = Array.isArray(nodeRecord.images) ? nodeRecord.images : [];
+  const images = rawImages
+    .map(img => normalizeImageAttachment(img, now))
+    .filter((img): img is ImageAttachment => Boolean(img));
+  const rawTags = Array.isArray(nodeRecord.tags) ? nodeRecord.tags : undefined;
+  return {
+    id: nodeId,
+    parentId,
+    content: typeof nodeRecord.content === 'string' ? nodeRecord.content : '',
+    level,
+    images,
+    collapsed: Boolean(nodeRecord.collapsed),
+    createdAt: typeof nodeRecord.createdAt === 'number' ? nodeRecord.createdAt : now,
+    updatedAt: typeof nodeRecord.updatedAt === 'number' ? nodeRecord.updatedAt : now,
+    isHeader: typeof nodeRecord.isHeader === 'boolean' ? nodeRecord.isHeader : undefined,
+    isSubHeader: typeof nodeRecord.isSubHeader === 'boolean' ? nodeRecord.isSubHeader : undefined,
+    tags: rawTags?.filter((tag): tag is string => typeof tag === 'string'),
+    isItalic: typeof nodeRecord.isItalic === 'boolean' ? nodeRecord.isItalic : undefined,
+    icon: typeof nodeRecord.icon === 'string' ? nodeRecord.icon : undefined,
+    children,
+  };
+};
+
+const normalizeImportedDocument = (data: unknown): { doc: Document; settings?: { lineSpacing?: LineSpacingType; autoSaveEnabled?: boolean; isDarkMode?: boolean } } => {
+  if (!isRecord(data)) {
+    throw new Error('导入失败，文件格式不正确');
+  }
+  const settings = isRecord(data.settings) ? data.settings : null;
+  const normalizedSettings = settings
+    ? {
+        lineSpacing: isLineSpacing(settings.lineSpacing) ? settings.lineSpacing : undefined,
+        autoSaveEnabled: typeof settings.autoSaveEnabled === 'boolean' ? settings.autoSaveEnabled : undefined,
+        isDarkMode: typeof settings.isDarkMode === 'boolean' ? settings.isDarkMode : undefined,
+      }
+    : undefined;
+  const source = isRecord(data.document) ? data.document : data;
+  const now = Date.now();
+  const rootSource = isRecord(source.root) ? source.root : null;
+  if (!rootSource) {
+    throw new Error('导入失败，缺少根节点');
+  }
+  const root = normalizeOutlineNode(rootSource, null, 0, now, new Set());
+  const title =
+    typeof source.title === 'string' && source.title.trim() ? source.title.trim() : '未命名';
+  return {
+    settings: normalizedSettings,
+    doc: {
+    id: crypto.randomUUID(),
+    title,
+    root,
+    metadata: {
+        createdAt: isRecord(source.metadata) && typeof source.metadata.createdAt === 'number'
+          ? source.metadata.createdAt
+          : now,
+        updatedAt: now,
+        version:
+          isRecord(source.metadata) && typeof source.metadata.version === 'string'
+            ? source.metadata.version
+            : '1.0.0',
+        deletedAt:
+          isRecord(source.metadata) && typeof source.metadata.deletedAt === 'number'
+            ? source.metadata.deletedAt
+            : null,
+      },
+    },
+  };
+};
+
+const countNodes = (node: OutlineNode): number =>
+  1 + node.children.reduce((sum, child) => sum + countNodes(child), 0);
 
 export const Header = React.memo(({ toggleSidebar }: HeaderProps) => {
   const saveDocument = useEditorStore(s => s.saveDocument);
@@ -24,6 +134,12 @@ export const Header = React.memo(({ toggleSidebar }: HeaderProps) => {
   const redo = useEditorStore(s => s.redo);
   const canUndo = useEditorStore(s => s.canUndo);
   const canRedo = useEditorStore(s => s.canRedo);
+  const lineSpacing = useEditorStore(s => s.lineSpacing);
+  const setLineSpacing = useEditorStore(s => s.setLineSpacing);
+  const autoSaveEnabled = useEditorStore(s => s.autoSaveEnabled);
+  const setAutoSaveEnabled = useEditorStore(s => s.setAutoSaveEnabled);
+  const isDarkMode = useEditorStore(s => s.isDarkMode);
+  const toggleDarkMode = useEditorStore(s => s.toggleDarkMode);
 
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
@@ -47,7 +163,15 @@ export const Header = React.memo(({ toggleSidebar }: HeaderProps) => {
     console.log('📤 Export button clicked');
     try {
       const doc = buildDocumentTree();
-      const blob = new Blob([JSON.stringify(doc, null, 2)], {
+      const payload = {
+        ...doc,
+        settings: {
+          lineSpacing,
+          autoSaveEnabled,
+          isDarkMode,
+        },
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
         type: 'application/json',
       });
       const url = URL.createObjectURL(blob);
@@ -57,6 +181,7 @@ export const Header = React.memo(({ toggleSidebar }: HeaderProps) => {
       a.click();
       URL.revokeObjectURL(url);
       console.log('✅ Export completed');
+      toastExportSuccess();
     } catch (error) {
       console.error('❌ Export error:', error);
       toastExportError();
@@ -76,12 +201,29 @@ export const Header = React.memo(({ toggleSidebar }: HeaderProps) => {
       try {
         console.log('📄 Reading file:', file.name);
         const text = await file.text();
-        const doc = JSON.parse(text);
+        const raw = JSON.parse(text);
+        const { doc, settings } = normalizeImportedDocument(raw);
+        const nodeCount = countNodes(doc.root);
+        const confirmed = window.confirm(`即将导入文档「${doc.title}」，共 ${nodeCount} 个节点。当前内容将被覆盖，是否继续？`);
+        if (!confirmed) return;
+        if (settings?.lineSpacing) {
+          setLineSpacing(settings.lineSpacing);
+        }
+        if (typeof settings?.autoSaveEnabled === 'boolean') {
+          setAutoSaveEnabled(settings.autoSaveEnabled);
+        }
+        if (typeof settings?.isDarkMode === 'boolean' && settings.isDarkMode !== isDarkMode) {
+          toggleDarkMode();
+        }
         loadDocument(doc);
+        await saveDocument();
+        await fetchDocuments();
+        toastImportSuccess();
         console.log('✅ Import completed');
       } catch (error) {
         console.error('❌ Import error:', error);
-        toastImportError();
+        const message = error instanceof Error ? error.message : undefined;
+        toastImportError(message);
       }
     };
     input.click();

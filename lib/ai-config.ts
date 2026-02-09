@@ -51,8 +51,8 @@ export function createAIModel(provider: AIProvider, model: string) {
         throw new Error('OPENAI_API_KEY 环境变量未设置');
       }
 
-      const { openai } = require('@ai-sdk/openai');
-      return openai(model);
+      const openaiClient = createOpenAI({ apiKey });
+      return openaiClient(model);
     }
   }
 }

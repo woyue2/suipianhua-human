@@ -7,7 +7,6 @@ interface NodeContentProps {
   isHeader?: boolean;
   isSubHeader?: boolean;
   isItalic?: boolean;
-  tags?: string[];
   inputRef: React.RefObject<HTMLInputElement>;
   onContentChange: (content: string) => void;
   onKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void;
@@ -28,7 +27,6 @@ export const NodeContent = memo(function NodeContent({
   isHeader,
   isSubHeader,
   isItalic,
-  tags,
   inputRef,
   onContentChange,
   onKeyDown,
@@ -47,12 +45,12 @@ export const NodeContent = memo(function NodeContent({
   // 输入框样式
   const inputClassName = `node-content border-none bg-transparent outline-none focus:ring-1 focus:ring-primary/20 rounded px-1 -mx-1 flex-1 min-w-0 ${
     isItalic ? 'italic text-slate-500' : ''
-  } ${isSubHeader && tags?.includes('#重点') ? 'text-primary' : ''}`;
+  }`;
 
   // 渲染内容样式
   const renderClassName = `node-content-rendered flex-1 min-w-0 px-1 -mx-1 cursor-text ${
     isItalic ? 'italic text-slate-500' : ''
-  } ${isSubHeader && tags?.includes('#重点') ? 'text-primary' : ''}`;
+  }`;
 
   return (
     <div className="flex-1 min-w-0">
@@ -86,17 +84,7 @@ export const NodeContent = memo(function NodeContent({
           />
         )}
 
-        {/* 标签 */}
-        {tags?.map(tag => (
-          <span
-            key={tag}
-            className="text-sm font-medium text-primary/60 bg-primary/5 px-1.5 py-0.5 rounded"
-          >
-            {tag}
-          </span>
-        ))}
       </div>
     </div>
   );
 });
-

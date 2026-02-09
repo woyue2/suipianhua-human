@@ -40,6 +40,12 @@ export async function POST(req: NextRequest) {
 
     // 验证配置
     const validatedConfig = ImageUploadConfigSchema.parse(config);
+    if (validatedConfig.customUrl) {
+      const parsedUrl = new URL(validatedConfig.customUrl);
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+        throw new ApiError('自定义图床仅支持 http/https 协议', 400, 'INVALID_CUSTOM_PROTOCOL');
+      }
+    }
 
     // 2. 获取上传文件
     const formData = await req.formData();
@@ -52,15 +58,14 @@ export async function POST(req: NextRequest) {
     // 3. 验证文件
     validateFileUpload(file);
 
+    if (validatedConfig.provider === 'custom' && !validatedConfig.customUrl) {
+      throw new ApiError('自定义图床未填写上传地址', 400, 'CUSTOM_URL_REQUIRED');
+    }
     if (
-      (validatedConfig.provider === 'custom' && !validatedConfig.customUrl) ||
-      ((validatedConfig.provider === 'imgur' || validatedConfig.provider === 'smms') &&
-        !validatedConfig.apiKey)
+      (validatedConfig.provider === 'imgur' || validatedConfig.provider === 'smms') &&
+      !validatedConfig.apiKey
     ) {
-      const arrayBuffer = await file.arrayBuffer();
-      const base64 = Buffer.from(arrayBuffer).toString('base64');
-      const url = `data:${file.type};base64,${base64}`;
-      return createSuccessResponse({ url });
+      throw new ApiError('图床 API Key 未配置', 400, 'API_KEY_REQUIRED');
     }
 
     // 4. 获取图床提供商信息
@@ -86,8 +91,9 @@ export async function POST(req: NextRequest) {
     });
 
     if (!upstreamRes.ok) {
+      const upstreamText = await upstreamRes.text();
       throw new ApiError(
-        `图床返回错误：${upstreamRes.status}`,
+        `图床返回错误：${upstreamRes.status} ${upstreamText}`,
         upstreamRes.status,
         'UPSTREAM_ERROR'
       );
@@ -98,8 +104,10 @@ export async function POST(req: NextRequest) {
     const parsed = providerInfo.parseResponse(upstreamData);
 
     if (!parsed?.url) {
+      const payload =
+        typeof upstreamData === 'string' ? upstreamData : JSON.stringify(upstreamData);
       throw new ApiError(
-        '图床返回数据格式不符合预期',
+        `图床返回数据格式不符合预期：${payload}`,
         502,
         'PARSE_ERROR'
       );

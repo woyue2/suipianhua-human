@@ -47,6 +47,8 @@ export interface Document {
     createdAt: number;
     updatedAt: number;
     version: string;
+    deletedAt?: number | null;
+    icon?: string;
   };
 }
 

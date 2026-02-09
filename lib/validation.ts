@@ -8,11 +8,11 @@ import { z } from 'zod';
 export const ApiResponseSchema = z.object({
   code: z.number(),
   message: z.string(),
-  data: z.any(),
+  data: z.unknown(),
   timestamp: z.number(),
 });
 
-export type ApiResponse<T = any> = {
+export type ApiResponse<T = unknown> = {
   code: number;
   message: string;
   data: T;
@@ -64,4 +64,3 @@ export const NodeOperationSchema = z.object({
 });
 
 export type NodeOperation = z.infer<typeof NodeOperationSchema>;
-

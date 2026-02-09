@@ -1,6 +1,7 @@
 'use server'
 
 import { OutlineNode } from '@/types';
+import { AIOutlineNode } from '@/lib/ai-schema';
 import { createAIModel, getDefaultProvider, getDefaultModel, AI_MODELS } from '@/lib/ai-config';
 
 /**
@@ -42,7 +43,7 @@ export async function reorganizeOutlineWithConfig(
 /**
  * 提取树结构内容，**保留格式标记**
  */
-function extractContentFromTree(node: OutlineNode): any {
+function extractContentFromTree(node: OutlineNode): AIOutlineNode {
   // 构建带格式的内容
   let formattedContent = node.content || '';
 
@@ -65,7 +66,12 @@ function extractContentFromTree(node: OutlineNode): any {
 /**
  * 调用智谱AI API (Server Actions版本)
  */
-async function callZhipuAI(plainTextTree: any, model: string) {
+type ReorganizeResult = {
+  reasoning: string;
+  newStructure: AIOutlineNode;
+};
+
+async function callZhipuAI(plainTextTree: AIOutlineNode, model: string): Promise<ReorganizeResult> {
   const apiKey = process.env.ZHIPU_API_KEY;
   if (!apiKey) {
     throw new Error('ZHIPU_API_KEY 环境变量未设置');
@@ -132,13 +138,18 @@ ${JSON.stringify(plainTextTree, null, 2)}
     throw new Error(`智谱AI调用失败: ${response.status} ${errorText}`);
   }
 
-  const data = await response.json();
-  const responseContent = data.choices[0].message.content;
+  const data = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  const responseContent = data.choices?.[0]?.message?.content;
+  if (!responseContent) {
+    throw new Error('AI 返回内容为空');
+  }
 
   // 解析JSON响应
   try {
-    return JSON.parse(responseContent);
-  } catch (error) {
+    return JSON.parse(responseContent) as ReorganizeResult;
+  } catch {
     console.error('❌ JSON Parse Error:', responseContent);
     throw new Error('AI返回的不是有效的JSON格式');
   }
@@ -147,7 +158,7 @@ ${JSON.stringify(plainTextTree, null, 2)}
 /**
  * 调用 OpenAI API (使用 Vercel AI SDK)
  */
-async function callOpenAI(plainTextTree: any, model: string) {
+async function callOpenAI(plainTextTree: AIOutlineNode, model: string) {
   const { streamObject } = await import('ai');
   const { ReorganizeResultSchema } = await import('@/lib/ai-schema');
 

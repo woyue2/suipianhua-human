@@ -5,8 +5,9 @@ import { useEditorStore } from '@/lib/store';
 import { reorganizeOutlineWithConfig } from '@/app/actions/ai';
 import { generateId } from '@/utils/id';
 import { calculateDiff } from '@/utils/tree-diff';
-import { OutlineNode } from '@/types';
+import { OutlineNode, ReorganizeChange } from '@/types';
 import { AI_MODELS, type AIProvider, getDefaultProvider, getDefaultModel } from '@/lib/ai-config';
+import { AIOutlineNode } from '@/lib/ai-schema';
 import { toast } from 'sonner';
 
 interface AIReorganizeModalProps {
@@ -19,7 +20,7 @@ export const AIReorganizeModal = React.memo(({ onClose }: AIReorganizeModalProps
   const [previewData, setPreviewData] = useState<{
     reasoning: string;
     newTree: OutlineNode;
-    changes: any[];
+    changes: ReorganizeChange[];
   } | null>(null);
 
   // AI 配置状态
@@ -55,9 +56,10 @@ export const AIReorganizeModal = React.memo(({ onClose }: AIReorganizeModalProps
         newTree: newTreeWithIds,
         changes,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('AI reorganize error:', err);
-      setError(err?.message || 'AI 重组失败，请稍后重试');
+      const message = err instanceof Error ? err.message : 'AI 重组失败，请稍后重试';
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -69,11 +71,9 @@ export const AIReorganizeModal = React.memo(({ onClose }: AIReorganizeModalProps
     const currentDoc = buildDocumentTree();
 
     // 为AI返回的树添加ID并恢复格式信息
-    const newTreeWithIds = addIdsToTree(previewData.newTree);
-
     const newDoc = {
       ...currentDoc,
-      root: newTreeWithIds,
+      root: previewData.newTree,
       metadata: {
         ...currentDoc.metadata,
         updatedAt: Date.now(),
@@ -90,12 +90,13 @@ export const AIReorganizeModal = React.memo(({ onClose }: AIReorganizeModalProps
   };
 
   // 为树结构添加 ID 并恢复格式信息
-  const addIdsToTree = (node: any): OutlineNode => {
+  const addIdsToTree = (node: AIOutlineNode): OutlineNode => {
     const now = Date.now();
     const parsed = parseFormatInfo(node.content);
+    const rootId = generateId();
 
     return {
-      id: generateId(),
+      id: rootId,
       parentId: null,
       content: parsed.content,
       level: 0,
@@ -104,7 +105,7 @@ export const AIReorganizeModal = React.memo(({ onClose }: AIReorganizeModalProps
       isSubHeader: node.isSubHeader,
       tags: node.tags || [],
       icon: node.icon,
-      children: node.children.map((child: any) => addIdsToTreeRecursive(child, 1)),
+      children: node.children.map((child) => addIdsToTreeRecursive(child, 1, rootId)),
       images: [],
       collapsed: false,
       createdAt: now,
@@ -112,13 +113,14 @@ export const AIReorganizeModal = React.memo(({ onClose }: AIReorganizeModalProps
     };
   };
 
-  const addIdsToTreeRecursive = (node: any, level: number): OutlineNode => {
+  const addIdsToTreeRecursive = (node: AIOutlineNode, level: number, parentId: string | null): OutlineNode => {
     const now = Date.now();
     const parsed = parseFormatInfo(node.content);
+    const nodeId = generateId();
 
     return {
-      id: generateId(),
-      parentId: null,
+      id: nodeId,
+      parentId,
       content: parsed.content,
       level,
       isItalic: node.isItalic || parsed.isItalic,
@@ -126,7 +128,7 @@ export const AIReorganizeModal = React.memo(({ onClose }: AIReorganizeModalProps
       isSubHeader: node.isSubHeader,
       tags: node.tags || [],
       icon: node.icon,
-      children: node.children.map((child: any) => addIdsToTreeRecursive(child, level + 1)),
+      children: node.children.map((child) => addIdsToTreeRecursive(child, level + 1, nodeId)),
       images: [],
       collapsed: false,
       createdAt: now,
@@ -145,8 +147,14 @@ export const AIReorganizeModal = React.memo(({ onClose }: AIReorganizeModalProps
     let cleanContent = content;
     let isItalic = false;
 
+    const isBold = cleanContent.startsWith('**') && cleanContent.endsWith('**') && cleanContent.length > 4;
+    const isUnderline = cleanContent.startsWith('__') && cleanContent.endsWith('__') && cleanContent.length > 4;
+    if (isBold || isUnderline) {
+      return { content: cleanContent };
+    }
+
     // 检测斜体 *text*
-    if (cleanContent.startsWith('*') && cleanContent.endsWith('*') && cleanContent.length > 1) {
+    if (cleanContent.startsWith('*') && cleanContent.endsWith('*') && cleanContent.length > 2) {
       isItalic = true;
       cleanContent = cleanContent.slice(1, -1);
     }
@@ -184,7 +192,7 @@ export const AIReorganizeModal = React.memo(({ onClose }: AIReorganizeModalProps
                     AI 提供商
                   </label>
                   <div className="flex gap-2">
-                    {Object.entries(AI_MODELS).map(([key, models]) => (
+                    {Object.entries(AI_MODELS).map(([key]) => (
                       <button
                         key={key}
                         onClick={() => setProvider(key as AIProvider)}

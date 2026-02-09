@@ -5,11 +5,33 @@ import React, { useState } from 'react';
 import { Loader2, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
+type TestAISegment = {
+  type: string;
+  text: string;
+};
+
+type TestAIReorganized = {
+  content: string;
+  attributes?: Record<string, unknown>;
+};
+
+type TestAIAnalysisItem = {
+  action: string;
+  originalLine: string;
+  segments: TestAISegment[];
+  reorganized: TestAIReorganized[];
+};
+
+type TestAIResult = {
+  analysis?: TestAIAnalysisItem[];
+  [key: string]: unknown;
+};
+
 export default function TestAIPage() {
   const [input, setInput] = useState(
     '完成项目报告 #urgent @manager 下周一之前\n购买牛奶和面包 #shopping\n[Idea] 开发一个新的 AI 插件用于自动分类'
   );
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<TestAIResult | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleAnalyze = async () => {
@@ -32,7 +54,7 @@ export default function TestAIPage() {
       const data = await response.json();
       setResult(data);
       toast.success('分析完成');
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(error);
       toast.error('分析失败，请重试');
     } finally {
@@ -107,7 +129,7 @@ export default function TestAIPage() {
 
             {result && result.analysis && (
               <div className="space-y-6">
-                {result.analysis.map((item: any, index: number) => (
+                    {result.analysis.map((item, index) => (
                   <div key={index} className="bg-white p-4 rounded border border-gray-100 shadow-sm">
                     <div className="text-xs text-gray-400 mb-2 uppercase tracking-wider flex justify-between">
                       <span>Original Line {index + 1}</span>
@@ -125,7 +147,7 @@ export default function TestAIPage() {
                     
                     {/* Segments Visualization */}
                     <div className="flex flex-wrap gap-2 mb-3">
-                      {item.segments.map((seg: any, i: number) => (
+                      {item.segments.map((seg, i) => (
                         <span 
                           key={i} 
                           className={`px-2 py-1 rounded text-xs border flex items-center gap-1
@@ -145,7 +167,7 @@ export default function TestAIPage() {
                     {/* Reorganized Suggestion */}
                     <div className="bg-gray-50 p-2 rounded text-sm text-gray-600">
                       <div className="text-[10px] text-gray-400 mb-1">SUGGESTED REORGANIZATION</div>
-                      {item.reorganized.map((rec: any, k: number) => (
+                      {item.reorganized.map((rec, k) => (
                         <div key={k} className="flex flex-col gap-1">
                           <div className="flex gap-2 items-center">
                             <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
@@ -153,9 +175,9 @@ export default function TestAIPage() {
                           </div>
                           {rec.attributes && Object.keys(rec.attributes).length > 0 && (
                             <div className="pl-6 flex flex-wrap gap-2">
-                              {Object.entries(rec.attributes).map(([key, value]) => (
-                                <span key={key} className="text-xs bg-white px-1.5 py-0.5 border rounded text-gray-500">
-                                  <span className="opacity-50 mr-1">{key}:</span>
+                              {Object.entries(rec.attributes).map(([attrKey, value]) => (
+                                <span key={attrKey} className="text-xs bg-white px-1.5 py-0.5 border rounded text-gray-500">
+                                  <span className="opacity-50 mr-1">{attrKey}:</span>
                                   {String(value)}
                                 </span>
                               ))}

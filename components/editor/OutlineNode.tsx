@@ -1,14 +1,13 @@
 'use client';
 
-import React, { memo, useRef, KeyboardEvent, useState } from 'react';
+import React, { memo, useRef, KeyboardEvent, useState, useCallback, useEffect } from 'react';
 import { useEditorStore } from '@/lib/store';
 import { UnifiedToolbar } from './UnifiedToolbar';
 import { useUnifiedToolbar } from '@/hooks/useUnifiedToolbar';
 import { useNodeFormatting } from '@/hooks/useNodeFormatting';
-import { useNodeTags } from '@/hooks/useNodeTags';
-import { TagList } from './TagList';
 import { ImageUploader } from './ImageUploader';
 import { NodeImages } from './NodeImages';
+import { IconPicker } from './IconPicker';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -29,6 +28,33 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
   const outdentNode = useEditorStore(s => s.outdentNode);
   const moveNodeUp = useEditorStore(s => s.moveNodeUp);
   const moveNodeDown = useEditorStore(s => s.moveNodeDown);
+  const focusedNodeId = useEditorStore(s => s.focusedNodeId);
+  const setFocusedNodeId = useEditorStore(s => s.setFocusedNodeId);
+  const updateNodeIcon = useEditorStore(s => s.updateNodeIcon);
+
+  const inputRef = useRef<HTMLInputElement>(null);
+  const nodeRef = useRef<HTMLDivElement | null>(null);
+  const iconRef = useRef<HTMLSpanElement>(null);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [showIconPicker, setShowIconPicker] = useState(false);
+
+  const [isAIReorganizing, setIsAIReorganizing] = useState(false);
+
+  // 自动聚焦新节点
+  useEffect(() => {
+    if (focusedNodeId === nodeId) {
+      setIsEditing(true);
+    }
+  }, [focusedNodeId, nodeId]);
+
+  // 当进入编辑模式时，确保输入框获得焦点
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isEditing]);
 
   const {
     attributes,
@@ -46,14 +72,6 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
     opacity: isDragging ? 0.4 : 1,
   };
 
-  const inputRef = useRef<HTMLInputElement>(null);
-  const nodeRef = useRef<HTMLDivElement>(null);
-  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const [isEditing, setIsEditing] = useState(false);
-
-  const [isAIReorganizing, setIsAIReorganizing] = useState(false);
-  
   // 使用统一工具栏 Hook
   const {
     toolbarType,
@@ -69,7 +87,6 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
   const { renderFormattedText, storeSelection, applyFormat } = useNodeFormatting(nodeId);
   
   // 使用标签 Hook
-  const { tags, removeTag } = useNodeTags(nodeId);
 
   // AI 智能整理处理函数
   const handleAIReorganize = async () => {
@@ -112,6 +129,11 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
   // 获取行间距设置
   const lineSpacing = useEditorStore(s => s.lineSpacing);
 
+  const setCombinedRef = useCallback((el: HTMLDivElement | null) => {
+    setActivatorNodeRef(el);
+    nodeRef.current = el;
+  }, [setActivatorNodeRef]);
+
   if (!node) return null;
 
   const hasChildren = node.children && node.children.length > 0;
@@ -129,12 +151,14 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
       // 存储选区信息 - 这样 applyFormat 才能工作！
       storeSelection(input);
       
-      // 获取鼠标位置
-      const nativeEvent = (e as any)?.nativeEvent as MouseEvent;
-      const x = nativeEvent?.clientX || input.getBoundingClientRect().left;
-      const y = nativeEvent?.clientY || input.getBoundingClientRect().bottom;
+      const nativeEvent = (e as React.SyntheticEvent).nativeEvent;
+      const rect = input.getBoundingClientRect();
+      const point =
+        typeof MouseEvent !== 'undefined' && nativeEvent instanceof MouseEvent
+          ? { x: nativeEvent.clientX, y: nativeEvent.clientY }
+          : { x: rect.left, y: rect.bottom };
       
-      showFormatToolbar(x, y);
+      showFormatToolbar(point.x, point.y);
     }
   };
 
@@ -169,19 +193,11 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey) {
       e.preventDefault();
-      const newId = addSiblingNode(nodeId);
-      setTimeout(() => {
-        const newInput = document.querySelector(`input[data-node-id="${newId}"]`) as HTMLInputElement;
-        if (newInput) newInput.focus();
-      }, 0);
+      addSiblingNode(nodeId);
     }
     else if (e.key === 'Enter' && e.ctrlKey) {
       e.preventDefault();
-      const newId = addChildNode(nodeId);
-      setTimeout(() => {
-        const newInput = document.querySelector(`input[data-node-id="${newId}"]`) as HTMLInputElement;
-        if (newInput) newInput.focus();
-      }, 0);
+      addChildNode(nodeId);
     }
     else if (e.key === 'Tab' && !e.shiftKey) {
       e.preventDefault();
@@ -232,17 +248,7 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
       className={`flex flex-col ${getSpacingClass()}`}
     >
       <div
-        ref={(el) => {
-           // Combine refs: setActivatorNodeRef and nodeRef
-           setActivatorNodeRef(el);
-           if (typeof nodeRef === 'function') {
-               // @ts-ignore
-               nodeRef(el);
-           } else if (nodeRef) {
-               // @ts-ignore
-               nodeRef.current = el;
-           }
-        }}
+        ref={setCombinedRef}
         {...attributes}
         {...listeners}
         onMouseEnter={handleMouseEnter}
@@ -269,20 +275,39 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
         className="group flex items-start gap-2 sm:gap-3 relative hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded px-2 py-2 sm:py-1 transition-colors active:bg-slate-100 dark:active:bg-slate-800/50"
       >
         <div
-          onClick={(e) => {
-             // Stop propagation to prevent drag start if needed?
-             // Actually, dnd-kit handles this well.
-             // But toggling collapse should probably not trigger drag if possible,
-             // but we want drag on the whole row.
-             // We can use the bullet as a separate handle if desired, but user asked for whole div.
-             if (hasChildren) toggleCollapse(nodeId);
+          onClick={() => {
+            if (hasChildren) toggleCollapse(nodeId);
           }}
           className={getBulletClass()}
         />
 
         <div className="flex-1 min-w-0">
           <div className={`flex items-baseline gap-1 sm:gap-2 flex-wrap text-sm sm:text-base ${textStyle()}`}>
-            {node.icon && <span className="mr-1">{node.icon}</span>}
+            {node.icon && (
+              <>
+                <span 
+                  ref={iconRef}
+                  className="mr-1 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 rounded px-0.5 select-none transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowIconPicker(true);
+                  }}
+                  title="点击更改图标"
+                >
+                  {node.icon}
+                </span>
+                {showIconPicker && (
+                  <IconPicker 
+                    onSelect={(icon) => {
+                      updateNodeIcon(nodeId, icon);
+                      setShowIconPicker(false);
+                    }}
+                    onClose={() => setShowIconPicker(false)}
+                    triggerRef={iconRef}
+                  />
+                )}
+              </>
+            )}
 
             {isEditing ? (
               <input
@@ -293,13 +318,14 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
                 onKeyDown={handleKeyDown}
                 onSelect={handleTextSelectWrapper}
                 onMouseUp={handleTextSelectWrapper}
+                onFocus={() => setFocusedNodeId(nodeId)}
                 onBlur={() => setIsEditing(false)}
                 data-node-id={nodeId}
                 placeholder="输入内容..."
                 autoFocus
                 className={`node-content border-none bg-transparent outline-none focus:ring-1 focus:ring-primary/20 rounded px-1 -mx-1 flex-1 min-w-0
                   ${node.isItalic ? 'italic text-slate-500' : ''}
-                  ${node.isSubHeader && tags?.includes('#重点') ? 'text-primary' : ''}
+                  
                 `}
                 // Prevent drag when interacting with input
                 onPointerDown={(e) => e.stopPropagation()}
@@ -308,7 +334,7 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
               <div
                 className={`node-content-rendered flex-1 min-w-0 px-1 -mx-1 cursor-text
                   ${node.isItalic ? 'italic text-slate-500' : ''}
-                  ${node.isSubHeader && tags?.includes('#重点') ? 'text-primary' : ''}
+                  
                 `}
                 onClick={() => setIsEditing(true)}
                 dangerouslySetInnerHTML={{
@@ -317,9 +343,6 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
               />
             )}
 
-            {tags && tags.length > 0 && (
-              <TagList tags={tags} onRemoveTag={removeTag} />
-            )}
           </div>
 
           {/* 图片显示区域 - 在节点内容下方 */}
@@ -369,6 +392,18 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
               >
                 <span className="text-lg">✨</span>
               </button>
+              {!node.icon && (
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateNodeIcon(nodeId, '📄');
+                  }}
+                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
+                  title="添加图标"
+                >
+                  <span className="text-lg">😊</span>
+                </button>
+              )}
               <ImageUploader nodeId={nodeId} />
             </>
           ) : (

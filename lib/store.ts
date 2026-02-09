@@ -2,11 +2,18 @@
 
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import { StoredOutlineNode, OutlineNode, Document } from '@/types';
+import { StoredOutlineNode, OutlineNode, Document, ImageAttachment } from '@/types';
 import { LineSpacingType, DEFAULTS } from '@/lib/constants';
 import { documentDb } from '@/lib/db';
 import { supabaseDocumentDb } from '@/lib/supabase-db';
 import { getCurrentUserId } from '@/lib/auth-context';
+
+const AUTO_SAVE_KEY = 'auto-save-enabled';
+const initialAutoSaveEnabled = typeof window !== 'undefined'
+  ? localStorage.getItem(AUTO_SAVE_KEY)
+  : null;
+const resolvedAutoSaveEnabled =
+  initialAutoSaveEnabled === null ? true : initialAutoSaveEnabled === 'true';
 
 interface HistoryState {
   nodes: Record<string, StoredOutlineNode>;
@@ -27,11 +34,11 @@ interface EditorStore {
   isDarkMode: boolean;
   lineSpacing: LineSpacingType;
   focusedNodeId: string | null;
-  filterTag: string | null;
 
   // 自动保存状态
   autoSaveEnabled: boolean;
   lastSavedAt: number | null;
+  lastEditedAt: number | null;
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
 
   // 历史栈
@@ -42,7 +49,7 @@ interface EditorStore {
   };
 
   // Document list
-  documents: Array<{ id: string; title: string; updatedAt: number }>;
+  documents: Array<{ id: string; title: string; updatedAt: number; deletedAt?: number | null; icon?: string }>;
   isLoadingDocuments: boolean;
 
   // 全局工具栏状态（确保同一时间只有一个工具栏显示）
@@ -53,8 +60,9 @@ interface EditorStore {
 
   // Actions - 基础操作
   updateNodeContent: (id: string, content: string) => void;
+  updateNodeIcon: (id: string, icon: string) => void;
   toggleCollapse: (id: string) => void;
-  addImage: (nodeId: string, image: any) => void;
+  addImage: (nodeId: string, image: ImageAttachment) => void;
   removeImage: (nodeId: string, imageId: string) => void;
   
   // 节点操作 Actions
@@ -73,8 +81,6 @@ interface EditorStore {
   setShowAIModal: (show: boolean) => void;
   setShowSettings: (show: boolean) => void;
   setFocusedNodeId: (id: string | null) => void;
-  setFilterTag: (tag: string | null) => void;
-  removeTag: (nodeId: string, tag: string) => void;
   toggleDarkMode: () => void;
   setLineSpacing: (spacing: LineSpacingType) => void;
   setAutoSaveEnabled: (enabled: boolean) => void;
@@ -84,7 +90,7 @@ interface EditorStore {
   buildDocumentTree: () => Document;
   loadDocument: (document: Document) => void;
   saveDocument: () => Promise<void>;
-  fetchDocuments: () => Promise<Array<{ id: string; title: string; updatedAt: number }>>;
+  fetchDocuments: () => Promise<Array<{ id: string; title: string; updatedAt: number; deletedAt?: number | null; icon?: string }>>;
 
   // 初始化
   initializeWithData: (nodes: Record<string, StoredOutlineNode>, rootId: string, title: string) => void;
@@ -93,6 +99,7 @@ interface EditorStore {
   undo: () => void;
   redo: () => void;
   pushHistory: () => void;
+  autoSaveNow: () => void;
 
   // 辅助
   canUndo: boolean;
@@ -110,9 +117,9 @@ export const useEditorStore = create<EditorStore>()(
     isDarkMode: false,
     lineSpacing: DEFAULTS.LINE_SPACING,
     focusedNodeId: null,
-    filterTag: null,
-    autoSaveEnabled: true,
+    autoSaveEnabled: resolvedAutoSaveEnabled,
     lastSavedAt: null,
+    lastEditedAt: null,
     saveStatus: 'idle',
     history: {
       past: [],
@@ -127,10 +134,12 @@ export const useEditorStore = create<EditorStore>()(
     activeFormatToolbarNodeId: null,
 
     updateNodeContent: (id, content) => {
+      const now = Date.now();
       set(state => {
         if (state.nodes[id]) {
           state.nodes[id].content = content;
-          state.nodes[id].updatedAt = Date.now();
+          state.nodes[id].updatedAt = now;
+          state.lastEditedAt = now;
         }
       });
       
@@ -140,33 +149,72 @@ export const useEditorStore = create<EditorStore>()(
       }, 0);
     },
 
+    updateNodeIcon: (id, icon) => {
+      const now = Date.now();
+      set(state => {
+        if (state.nodes[id]) {
+          state.nodes[id].icon = icon;
+          state.nodes[id].updatedAt = now;
+          state.lastEditedAt = now;
+
+          // Sync with documents list if it's the root node
+          if (id === state.rootId) {
+            const docIndex = state.documents.findIndex(d => d.id === state.documentId);
+            if (docIndex !== -1) {
+              state.documents[docIndex].icon = icon;
+              state.documents[docIndex].updatedAt = now;
+            }
+          }
+        }
+      });
+      setTimeout(() => {
+        get().pushHistory();
+      }, 0);
+    },
+
     toggleCollapse: (id) => {
+      const now = Date.now();
       set(state => {
         if (state.nodes[id]) {
           state.nodes[id].collapsed = !state.nodes[id].collapsed;
+          state.nodes[id].updatedAt = now;
+          state.lastEditedAt = now;
         }
       });
+      setTimeout(() => {
+        get().pushHistory();
+      }, 0);
     },
 
     addImage: (nodeId, image) => {
+      const now = Date.now();
       set(state => {
         if (state.nodes[nodeId]) {
           // immer 会自动处理不可变性
           state.nodes[nodeId].images.push(image);
-          state.nodes[nodeId].updatedAt = Date.now();
+          state.nodes[nodeId].updatedAt = now;
+          state.lastEditedAt = now;
         }
       });
+      setTimeout(() => {
+        get().pushHistory();
+      }, 0);
     },
 
     removeImage: (nodeId, imageId) => {
+      const now = Date.now();
       set(state => {
         if (state.nodes[nodeId]) {
           state.nodes[nodeId].images = state.nodes[nodeId].images.filter(
             img => img.id !== imageId
           );
-          state.nodes[nodeId].updatedAt = Date.now();
+          state.nodes[nodeId].updatedAt = now;
+          state.lastEditedAt = now;
         }
       });
+      setTimeout(() => {
+        get().pushHistory();
+      }, 0);
     },
 
     // 添加子节点
@@ -194,9 +242,14 @@ export const useEditorStore = create<EditorStore>()(
         // 添加到父节点的 children
         parent.children.push(newId);
         parent.updatedAt = now;
+        state.lastEditedAt = now;
       });
 
       console.log('➕ Added child node:', newId);
+      set({ focusedNodeId: newId });
+      setTimeout(() => {
+        get().pushHistory();
+      }, 0);
       return newId;
     },
 
@@ -229,15 +282,20 @@ export const useEditorStore = create<EditorStore>()(
         const index = parent.children.indexOf(nodeId);
         parent.children.splice(index + 1, 0, newId);
         parent.updatedAt = now;
+        state.lastEditedAt = now;
       });
 
       console.log('➕ Added sibling node:', newId);
       set({ focusedNodeId: newId });
+      setTimeout(() => {
+        get().pushHistory();
+      }, 0);
       return newId;
     },
 
     // 删除节点
     deleteNode: (nodeId) => {
+      const now = Date.now();
       set(state => {
         const node = state.nodes[nodeId];
         if (!node || !node.parentId) {
@@ -261,14 +319,19 @@ export const useEditorStore = create<EditorStore>()(
 
         // 从父节点移除
         parent.children = parent.children.filter(id => id !== nodeId);
-        parent.updatedAt = Date.now();
+        parent.updatedAt = now;
+        state.lastEditedAt = now;
       });
 
       console.log('🗑️ Deleted node:', nodeId);
+      setTimeout(() => {
+        get().pushHistory();
+      }, 0);
     },
 
     // 增加缩进（变成上一个兄弟节点的子节点）
     indentNode: (nodeId) => {
+      const now = Date.now();
       set(state => {
         const node = state.nodes[nodeId];
         if (!node || !node.parentId) return;
@@ -304,15 +367,20 @@ export const useEditorStore = create<EditorStore>()(
         };
         updateLevel(nodeId, prevSibling.level + 1);
 
-        parent.updatedAt = Date.now();
-        prevSibling.updatedAt = Date.now();
+        parent.updatedAt = now;
+        prevSibling.updatedAt = now;
+        state.lastEditedAt = now;
       });
 
       console.log('→ Indented node:', nodeId);
+      setTimeout(() => {
+        get().pushHistory();
+      }, 0);
     },
 
     // 减少缩进（变成父节点的兄弟节点）
     outdentNode: (nodeId) => {
+      const now = Date.now();
       set(state => {
         const node = state.nodes[nodeId];
         if (!node || !node.parentId) return;
@@ -345,15 +413,20 @@ export const useEditorStore = create<EditorStore>()(
         };
         updateLevel(nodeId, parent.level);
 
-        parent.updatedAt = Date.now();
-        grandParent.updatedAt = Date.now();
+        parent.updatedAt = now;
+        grandParent.updatedAt = now;
+        state.lastEditedAt = now;
       });
 
       console.log('← Outdented node:', nodeId);
+      setTimeout(() => {
+        get().pushHistory();
+      }, 0);
     },
 
     // 上移节点
     moveNodeUp: (nodeId) => {
+      const now = Date.now();
       set(state => {
         const node = state.nodes[nodeId];
         if (!node || !node.parentId) return;
@@ -371,14 +444,19 @@ export const useEditorStore = create<EditorStore>()(
         [parent.children[index - 1], parent.children[index]] = 
         [parent.children[index], parent.children[index - 1]];
 
-        parent.updatedAt = Date.now();
+        parent.updatedAt = now;
+        state.lastEditedAt = now;
       });
 
       console.log('↑ Moved node up:', nodeId);
+      setTimeout(() => {
+        get().pushHistory();
+      }, 0);
     },
 
     // 下移节点
     moveNodeDown: (nodeId) => {
+      const now = Date.now();
       set(state => {
         const node = state.nodes[nodeId];
         if (!node || !node.parentId) return;
@@ -396,10 +474,14 @@ export const useEditorStore = create<EditorStore>()(
         [parent.children[index], parent.children[index + 1]] = 
         [parent.children[index + 1], parent.children[index]];
 
-        parent.updatedAt = Date.now();
+        parent.updatedAt = now;
+        state.lastEditedAt = now;
       });
 
       console.log('↓ Moved node down:', nodeId);
+      setTimeout(() => {
+        get().pushHistory();
+      }, 0);
     },
 
     setShowAIModal: (show) => {
@@ -412,20 +494,6 @@ export const useEditorStore = create<EditorStore>()(
 
     setFocusedNodeId: (id) => {
       set({ focusedNodeId: id });
-    },
-
-    setFilterTag: (tag) => {
-      set({ filterTag: tag });
-    },
-
-    removeTag: (nodeId, tag) => {
-      set(state => {
-        const node = state.nodes[nodeId];
-        if (node && node.tags) {
-          node.tags = node.tags.filter(t => t !== tag);
-          node.updatedAt = Date.now();
-        }
-      });
     },
 
     toggleDarkMode: () => {
@@ -441,11 +509,18 @@ export const useEditorStore = create<EditorStore>()(
 
     setAutoSaveEnabled: (enabled) => {
       set({ autoSaveEnabled: enabled });
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(AUTO_SAVE_KEY, String(enabled));
+      }
       console.log('💾 Auto save enabled changed to:', enabled);
     },
 
     setTitle: (title) => {
-      set({ title });
+      const now = Date.now();
+      set({ title, lastEditedAt: now });
+      setTimeout(() => {
+        get().pushHistory();
+      }, 0);
     },
 
     setActiveToolbarNodeId: (nodeId) => {
@@ -543,12 +618,22 @@ export const useEditorStore = create<EditorStore>()(
 
         flattenNode(document.root, null);
         state.nodes = nodesMap;
+        state.history.present = {
+          nodes: JSON.parse(JSON.stringify(nodesMap)),
+          rootId: document.root.id,
+          title: document.title,
+        };
+        state.history.past = [];
+        state.history.future = [];
+        state.canUndo = false;
+        state.canRedo = false;
       });
 
       console.log('✅ Document loaded:', document.id);
     },
 
     moveNode: (activeId, overId, type) => {
+      const now = Date.now();
       set(state => {
         const activeNode = state.nodes[activeId];
         const overNode = state.nodes[overId];
@@ -562,10 +647,19 @@ export const useEditorStore = create<EditorStore>()(
         const oldParent = state.nodes[oldParentId];
         oldParent.children = oldParent.children.filter(id => id !== activeId);
 
+        const updateLevel = (id: string, level: number) => {
+          const node = state.nodes[id];
+          if (!node) return;
+          node.level = level;
+          node.children.forEach(childId => updateLevel(childId, level + 1));
+        };
+
         if (type === 'inside') {
           // Add as first child of overNode
           state.nodes[overId].children.unshift(activeId);
           state.nodes[activeId].parentId = overId;
+          updateLevel(activeId, overNode.level + 1);
+          overNode.updatedAt = now;
         } else {
           // Add as sibling of overNode
           const newParentId = overNode.parentId;
@@ -585,11 +679,17 @@ export const useEditorStore = create<EditorStore>()(
             newParent.children.splice(overIndex + 1, 0, activeId);
           }
           state.nodes[activeId].parentId = newParentId;
+          updateLevel(activeId, overNode.level);
+          newParent.updatedAt = now;
         }
         
-        state.nodes[activeId].updatedAt = Date.now();
+        state.nodes[activeId].updatedAt = now;
+        oldParent.updatedAt = now;
+        state.lastEditedAt = now;
       });
-      get().saveDocument();
+      setTimeout(() => {
+        get().pushHistory();
+      }, 0);
     },
 
     initializeWithData: (nodes, rootId, title) => {
@@ -598,6 +698,17 @@ export const useEditorStore = create<EditorStore>()(
         rootId,
         title,
         documentId: crypto.randomUUID(),
+        history: {
+          past: [],
+          present: {
+            nodes: JSON.parse(JSON.stringify(nodes)),
+            rootId,
+            title,
+          },
+          future: [],
+        },
+        canUndo: false,
+        canRedo: false,
       });
       console.log('✅ Initialized with data:', title);
     },
@@ -626,6 +737,27 @@ export const useEditorStore = create<EditorStore>()(
     pushHistory: () => {
       set(state => {
         const MAX_HISTORY = 30;
+        if (!state.history.present) {
+          state.history.present = {
+            nodes: JSON.parse(JSON.stringify(state.nodes)),
+            rootId: state.rootId,
+            title: state.title,
+          };
+          state.history.past = [];
+          state.history.future = [];
+          state.canUndo = false;
+          state.canRedo = false;
+          return;
+        }
+        const currentSnapshot = JSON.stringify({
+          nodes: state.nodes,
+          rootId: state.rootId,
+          title: state.title,
+        });
+        const presentSnapshot = JSON.stringify(state.history.present);
+        if (currentSnapshot === presentSnapshot) {
+          return;
+        }
         
         // 创建当前状态的快照
         const snapshot: HistoryState = {
@@ -650,6 +782,16 @@ export const useEditorStore = create<EditorStore>()(
       });
     },
 
+    autoSaveNow: () => {
+      const { autoSaveEnabled, saveStatus, lastEditedAt, lastSavedAt } = get();
+      if (!autoSaveEnabled) return;
+      if (saveStatus === 'saving') return;
+      if (!lastEditedAt) return;
+      if (!lastSavedAt || lastEditedAt > lastSavedAt) {
+        get().saveDocument();
+      }
+    },
+
     undo: () => {
       const state = get();
       const { past, present, future } = state.history;
@@ -662,6 +804,7 @@ export const useEditorStore = create<EditorStore>()(
       const previous = past[past.length - 1];
       const newPast = past.slice(0, past.length - 1);
 
+      const now = Date.now();
       set({
         history: {
           past: newPast,
@@ -673,9 +816,11 @@ export const useEditorStore = create<EditorStore>()(
         title: previous.title,
         canUndo: newPast.length > 0,
         canRedo: true,
+        lastEditedAt: now,
       });
 
       console.log('↶ Undo performed');
+      get().autoSaveNow();
     },
 
     redo: () => {
@@ -690,6 +835,7 @@ export const useEditorStore = create<EditorStore>()(
       const next = future[0];
       const newFuture = future.slice(1);
 
+      const now = Date.now();
       set({
         history: {
           past: [...past, present!],
@@ -701,9 +847,11 @@ export const useEditorStore = create<EditorStore>()(
         title: next.title,
         canUndo: true,
         canRedo: newFuture.length > 0,
+        lastEditedAt: now,
       });
 
       console.log('↷ Redo performed');
+      get().autoSaveNow();
     },
   }))
 );

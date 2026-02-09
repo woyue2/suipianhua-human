@@ -142,7 +142,6 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
         {/* 项目符号 */}
         <NodeBullet
           hasChildren={hasChildren}
-          isCollapsed={isCollapsed}
           onClick={operations.toggleCollapse}
         />
 
@@ -154,7 +153,6 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
           isHeader={node.isHeader}
           isSubHeader={node.isSubHeader}
           isItalic={node.isItalic}
-          tags={node.tags}
           inputRef={inputRef}
           onContentChange={operations.updateContent}
           onKeyDown={e => keyboard.handleKeyDown(e, node.content)}
@@ -190,8 +188,7 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
       {/* 子节点 */}
       {!isCollapsed && hasChildren && (
         <NodeChildren
-          nodeId={nodeId}
-          children={node.children}
+          childIds={node.children}
           depth={depth}
           renderNode={(childId, childDepth) => (
             <OutlineNode key={childId} nodeId={childId} depth={childDepth} />

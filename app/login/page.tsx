@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/app/auth/AuthProvider'
 
 export default function LoginPage() {
@@ -9,23 +9,37 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
   const [error, setError] = useState('')
-  const { signIn, signUp, signInWithGithub } = useAuth()
+  const [notice, setNotice] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const { signIn, signUp, user, loading } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectTo = searchParams?.get('redirect') || '/'
 
-  
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace('/')
+    }
+  }, [loading, user, router])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setNotice('')
+    setSubmitting(true)
     try {
       if (isSignUp) {
         await signUp(email, password)
-        alert('注册成功，请查收邮件验证')
+        setNotice('注册成功，请查收邮件验证')
+        setIsSignUp(false)
       } else {
         await signIn(email, password)
-        router.push('/')
+        router.replace(redirectTo)
       }
     } catch (err) {
       setError((err as { message?: string })?.message || '登录失败')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -57,27 +71,22 @@ export default function LoginPage() {
             />
           </div>
           {error && <div className="text-red-600 text-sm">{error}</div>}
+          {notice && <div className="text-blue-600 text-sm">{notice}</div>}
           <button
             type="submit"
             className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700"
+            disabled={submitting}
           >
-            {isSignUp ? '注册' : '登录'}
+            {submitting ? '处理中...' : isSignUp ? '注册' : '登录'}
           </button>
         </form>
         <button
           onClick={() => setIsSignUp(!isSignUp)}
+          disabled={submitting}
           className="w-full text-sm text-blue-600 hover:underline"
         >
           {isSignUp ? '已有账号？登录' : '没有账号？注册'}
         </button>
-        <div className="pt-2">
-          <button
-            onClick={() => signInWithGithub()}
-            className="w-full bg-black text-white py-2 px-4 rounded-md hover:bg-gray-800"
-          >
-            使用 GitHub 登录
-          </button>
-        </div>
       </div>
     </div>
   )

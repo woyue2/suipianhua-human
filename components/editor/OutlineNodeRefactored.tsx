@@ -21,7 +21,6 @@ import {
   Italic,
   Underline,
   Highlighter,
-  X,
 } from 'lucide-react';
 
 interface OutlineNodeProps {
@@ -41,10 +40,6 @@ export const OutlineNodeRefactored = memo(function OutlineNodeRefactored({
   const inputRef = useRef<HTMLInputElement>(null);
   const nodeRef = useRef<HTMLDivElement>(null);
   const focusedNodeId = useEditorStore(s => s.focusedNodeId);
-  const setFocusedNodeId = useEditorStore(s => s.setFocusedNodeId);
-  const removeTag = useEditorStore(s => s.removeTag);
-  const setFilterTag = useEditorStore(s => s.setFilterTag);
-  const filterTag = useEditorStore(s => s.filterTag);
 
   // 使用自定义 hooks
   const toolbar = useToolbarState(nodeId);
@@ -186,36 +181,6 @@ export const OutlineNodeRefactored = memo(function OutlineNodeRefactored({
               />
             )}
 
-            {node.tags?.map(tag => (
-              <span
-                key={tag}
-                className={`inline-flex items-center gap-1 text-sm font-medium px-1.5 py-0.5 rounded group transition-colors cursor-pointer ${
-                  filterTag === tag 
-                    ? 'bg-primary text-white' 
-                    : 'text-primary/60 bg-primary/5 hover:bg-primary/10'
-                }`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setFilterTag(filterTag === tag ? null : tag);
-                }}
-                title={filterTag === tag ? "取消筛选" : "筛选此标签"}
-              >
-                #{tag}
-                <button 
-                  className={`opacity-0 group-hover:opacity-100 transition-opacity ${
-                    filterTag === tag ? 'text-white/80 hover:text-white' : 'hover:text-red-500'
-                  }`}
-                  title="删除标签"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeTag(nodeId, tag);
-                    if (filterTag === tag) setFilterTag(null);
-                  }}
-                >
-                  <X size={10} strokeWidth={2} />
-                </button>
-              </span>
-            ))}
           </div>
         </div>
       </div>
@@ -357,4 +322,3 @@ export const OutlineNodeRefactored = memo(function OutlineNodeRefactored({
     </div>
   );
 });
-

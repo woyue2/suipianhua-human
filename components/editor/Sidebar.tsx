@@ -11,6 +11,7 @@ import { documentDb } from '@/lib/db';
 import { supabaseDocumentDb } from '@/lib/supabase-db';
 import { useAuth } from '@/app/auth/AuthProvider';
 import { toast } from 'sonner';
+import { getRandomEmoji } from '@/lib/constants';
 
 interface SidebarProps {
   isCollapsed: boolean;
@@ -83,6 +84,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse 
     const rootNodeId = crypto.randomUUID();
     const firstChildId = crypto.randomUUID();
     const now = Date.now();
+    const randomIcon = getRandomEmoji();
     
     // 创建新文档的初始节点结构（包含根节点和第一个可编辑的子节点）
     const initialNodes = {
@@ -96,6 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse 
         collapsed: false,
         createdAt: now,
         updatedAt: now,
+        icon: randomIcon, // 添加随机图标
       },
       [firstChildId]: {
         id: firstChildId,

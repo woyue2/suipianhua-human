@@ -17,7 +17,7 @@
     "@supabase/auth-helpers-nextjs": "^0.15.0",
     "@supabase/auth-helpers-react": "^0.15.0",
     "@supabase/supabase-js": "^2.95.3",
-    "ai": "^3.0.0",
+    "ai": "^6.0.77",
     "dexie": "^4.0.0",
     "dompurify": "^3.3.1",
     "immer": "^10.0.0",

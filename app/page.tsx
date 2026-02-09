@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Moon, Sun } from 'lucide-react';
 import { Sidebar } from '@/components/editor/Sidebar';
 import { Header } from '@/components/editor/Header';
 import { OutlineTree } from '@/components/editor/OutlineTree';
 import { useEditorStore } from '@/lib/store';
-import { INITIAL_SIDEBAR_DATA } from '@/lib/constants';
 
 export default function Home() {
   const [isMobile, setIsMobile] = useState(false);
@@ -18,12 +17,18 @@ export default function Home() {
   const canUndo = useEditorStore(s => s.canUndo);
   const canRedo = useEditorStore(s => s.canRedo);
   const saveDocument = useEditorStore(s => s.saveDocument);
+  const autoSaveEnabled = useEditorStore(s => s.autoSaveEnabled);
+  const lastEditedAt = useEditorStore(s => s.lastEditedAt);
+  const lastSavedAt = useEditorStore(s => s.lastSavedAt);
+  const saveStatus = useEditorStore(s => s.saveStatus);
+  const autoSaveNow = useEditorStore(s => s.autoSaveNow);
   
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const updateIsMobile = () => {
@@ -111,6 +116,23 @@ export default function Home() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [undo, redo, canUndo, canRedo, saveDocument]);
 
+  useEffect(() => {
+    if (!autoSaveEnabled) return;
+    if (!lastEditedAt) return;
+    if (autoSaveTimerRef.current) {
+      clearTimeout(autoSaveTimerRef.current);
+    }
+    autoSaveTimerRef.current = setTimeout(() => {
+      autoSaveNow();
+    }, 2000);
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+    };
+  }, [autoSaveEnabled, lastEditedAt, lastSavedAt, saveStatus, autoSaveNow]);
+
   const handleDarkModeToggle = () => {
     console.log('🌓 Dark mode toggle clicked');
     toggleDarkMode();
@@ -157,7 +179,6 @@ export default function Home() {
       )}
 
       <Sidebar 
-        items={INITIAL_SIDEBAR_DATA} 
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
       />

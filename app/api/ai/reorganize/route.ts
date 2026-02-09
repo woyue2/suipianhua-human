@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       model,
       temperature,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('❌ AI Error:', error);
     return handleApiError(error);
   }
@@ -125,7 +125,7 @@ ${content}
   // 解析JSON响应
   try {
     return JSON.parse(responseContent);
-  } catch (error) {
+  } catch {
     console.error('❌ JSON Parse Error:', responseContent);
     throw new Error('AI返回的不是有效的JSON格式');
   }
