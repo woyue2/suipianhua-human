@@ -39,3 +39,9 @@ COMPLETION.md
 EDITING_TEST.md
 INTEGRATION.md
 TESTING.md
+
+# PWA files
+public/sw.js
+public/sw.js.map
+public/workbox-*.js
+public/workbox-*.js.map

@@ -1,0 +1,16 @@
+{
+  "name": "碎片化人类",
+  "short_name": "碎片化人类",
+  "description": "基于 Next.js 的 AI 智能大纲整理工具",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
