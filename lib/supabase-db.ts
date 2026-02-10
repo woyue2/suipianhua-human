@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import type { Document } from '@/types'
+import { extractContentFromNode } from '@/lib/db'
 
 // 回收站配置
 const TRASH_CONFIG = {
@@ -66,7 +67,7 @@ export const supabaseDocumentDb = {
 
     let query = supabase
       .from('documents')
-      .select('id,title,updated_at,metadata')
+      .select('id,title,updated_at,metadata,root')
       .order('updated_at', { ascending: false })
       .limit(50)
 
@@ -82,6 +83,7 @@ export const supabaseDocumentDb = {
       updatedAt: d.updated_at,
       deletedAt: d.metadata?.deletedAt ?? null,
       icon: d.metadata?.icon,
+      searchableText: d.root ? extractContentFromNode(d.root) : '',
     }))
   },
 

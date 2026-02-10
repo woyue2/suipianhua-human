@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Folder, Save, Upload, Download, Sparkles, Settings, Menu, FileJson, FileCode } from 'lucide-react';
+import { Folder, Save, Upload, Download, Sparkles, Settings, Menu, FileJson, FileCode, CheckSquare } from 'lucide-react';
 import { useEditorStore } from '@/lib/store';
 import { AIReorganizeModal } from '@/components/ai/AIReorganizeModal';
 import { SettingsModal } from '@/components/ui/SettingsModal';
@@ -141,6 +141,10 @@ export const Header = React.memo(({ toggleSidebar }: HeaderProps) => {
   const setAutoSaveEnabled = useEditorStore(s => s.setAutoSaveEnabled);
   const isDarkMode = useEditorStore(s => s.isDarkMode);
   const toggleDarkMode = useEditorStore(s => s.toggleDarkMode);
+  
+  const isSelectionMode = useEditorStore(s => s.isSelectionMode);
+  const toggleSelectionMode = useEditorStore(s => s.toggleSelectionMode);
+  const selectedNodeIds = useEditorStore(s => s.selectedNodeIds);
 
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
@@ -410,6 +414,20 @@ export const Header = React.memo(({ toggleSidebar }: HeaderProps) => {
           </div>
 
           <div className="w-px h-6 bg-slate-300 dark:bg-slate-600 mx-1" />
+
+          {/* 多选模式 */}
+          <button 
+            onClick={toggleSelectionMode}
+            className={`p-1 px-2 hover:bg-white dark:hover:bg-slate-700 rounded shadow-sm flex items-center gap-1 transition-all ${
+              isSelectionMode 
+                ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400' 
+                : 'text-slate-600 dark:text-slate-400'
+            }`}
+            title="多选模式"
+          >
+            <CheckSquare size={16} />
+            {selectedNodeIds.length > 0 && <span className="text-xs font-bold">{selectedNodeIds.length}</span>}
+          </button>
 
           {/* AI 重组 */}
           <button 

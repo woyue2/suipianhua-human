@@ -15,6 +15,8 @@ export async function reorganizeOutline(currentTree: OutlineNode) {
   return reorganizeOutlineWithConfig(currentTree, provider, model);
 }
 
+import { promptManager } from '@/lib/prompts/manager';
+
 /**
  * AI 大纲重组（指定配置）
  * 允许自定义 AI 提供商和模型
@@ -22,22 +24,56 @@ export async function reorganizeOutline(currentTree: OutlineNode) {
 export async function reorganizeOutlineWithConfig(
   currentTree: OutlineNode,
   provider: 'openai' | 'zhipu',
-  model: string
+  model: string,
+  promptId?: string
 ) {
   // 保留格式信息的提取
   const plainTextTree = extractContentFromTree(currentTree);
+
+  // 获取提示词
+  let systemPrompt: string;
+  let temperature = 0.7;
+
+  if (promptId) {
+    const template = promptManager.getPrompt(promptId);
+    if (template) {
+      systemPrompt = template.systemPrompt;
+      if (template.temperature) {
+        temperature = template.temperature;
+      }
+    } else {
+      // 如果找不到指定ID，使用默认
+      const defaultPrompt = promptManager.getPrompt('reorganize-default');
+      systemPrompt = defaultPrompt?.systemPrompt || getDefaultSystemPrompt();
+    }
+  } else {
+    // 未指定ID，尝试获取默认
+    const defaultPrompt = promptManager.getPrompt('reorganize-default');
+    systemPrompt = defaultPrompt?.systemPrompt || getDefaultSystemPrompt();
+  }
 
   let result;
 
   if (provider === 'zhipu') {
     // 智谱AI使用直接HTTP调用
-    result = await callZhipuAI(plainTextTree, model);
+    result = await callZhipuAI(plainTextTree, model, systemPrompt, temperature);
   } else {
     // OpenAI使用 Vercel AI SDK
-    result = await callOpenAI(plainTextTree, model);
+    result = await callOpenAI(plainTextTree, model, systemPrompt, temperature);
   }
 
   return result;
+}
+
+function getDefaultSystemPrompt(): string {
+  return `你是一个大纲整理助手。请将以下混乱的列表整理成层级清晰的树状结构。
+
+要求：
+1. 识别主题，创建父级分类
+2. 将相关内容归纳到分类下
+3. 只返回 JSON 结构
+4. **重要：保留所有格式标记！** 粗体用 **text**，斜体用 *text*
+5. 保持原有内容不变，只调整层级关系`;
 }
 
 /**
@@ -71,7 +107,12 @@ type ReorganizeResult = {
   newStructure: AIOutlineNode;
 };
 
-async function callZhipuAI(plainTextTree: AIOutlineNode, model: string): Promise<ReorganizeResult> {
+async function callZhipuAI(
+  plainTextTree: AIOutlineNode, 
+  model: string,
+  systemPrompt: string,
+  temperature: number
+): Promise<ReorganizeResult> {
   const apiKey = process.env.ZHIPU_API_KEY;
   if (!apiKey) {
     throw new Error('ZHIPU_API_KEY 环境变量未设置');
@@ -79,14 +120,7 @@ async function callZhipuAI(plainTextTree: AIOutlineNode, model: string): Promise
 
   const url = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
 
-  const prompt = `你是一个大纲整理助手。请将以下混乱的列表整理成层级清晰的树状结构。
-
-要求：
-1. 识别主题，创建父级分类
-2. 将相关内容归纳到分类下
-3. 只返回 JSON 结构
-4. **重要：保留所有格式标记！** 粗体用 **text**，斜体用 *text*
-5. 保持原有内容不变，只调整层级关系
+  const fullPrompt = `${systemPrompt}
 
 原始数据（包含格式信息）：
 ${JSON.stringify(plainTextTree, null, 2)}
@@ -98,18 +132,9 @@ ${JSON.stringify(plainTextTree, null, 2)}
     "content": "根节点内容（保留格式标记）",
     "isHeader": false,
     "isSubHeader": false,
-    "tags": [],
+    "tags": ["tag1"],
     "isItalic": false,
-    "children": [
-      {
-        "content": "子节点内容（保留格式标记）",
-        "isHeader": false,
-        "isSubHeader": false,
-        "tags": [],
-        "isItalic": false,
-        "children": []
-      }
-    ]
+    "children": []
   }
 }`;
 
@@ -124,10 +149,10 @@ ${JSON.stringify(plainTextTree, null, 2)}
       messages: [
         {
           role: 'user',
-          content: prompt,
+          content: fullPrompt,
         },
       ],
-      temperature: 0.7,
+      temperature: temperature,
       response_format: { type: 'json_object' }, // 强制JSON格式
     }),
   });
@@ -158,27 +183,24 @@ ${JSON.stringify(plainTextTree, null, 2)}
 /**
  * 调用 OpenAI API (使用 Vercel AI SDK)
  */
-async function callOpenAI(plainTextTree: AIOutlineNode, model: string) {
+async function callOpenAI(
+  plainTextTree: AIOutlineNode, 
+  model: string,
+  systemPrompt: string,
+  temperature: number
+) {
   const { streamObject } = await import('ai');
   const { ReorganizeResultSchema } = await import('@/lib/ai-schema');
 
   const aiModel = createAIModel('openai', model);
 
-  const prompt = `你是一个大纲整理助手。请将以下混乱的列表整理成层级清晰的树状结构。
-
-要求：
-1. 识别主题，创建父级分类
-2. 将相关内容归纳到分类下
-3. 只返回 JSON 结构
-4. **重要：保留所有格式标记！**
-
-原始数据：
-${JSON.stringify(plainTextTree, null, 2)}`;
-
   const result = await streamObject({
     model: aiModel,
     schema: ReorganizeResultSchema,
-    prompt,
+    system: systemPrompt,
+    prompt: `原始数据：
+${JSON.stringify(plainTextTree, null, 2)}`,
+    temperature: temperature,
   });
 
   // Wait for the result to complete and get the full object

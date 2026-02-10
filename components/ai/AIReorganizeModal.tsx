@@ -5,10 +5,12 @@ import { useEditorStore } from '@/lib/store';
 import { reorganizeOutlineWithConfig } from '@/app/actions/ai';
 import { generateId } from '@/utils/id';
 import { calculateDiff } from '@/utils/tree-diff';
-import { OutlineNode, ReorganizeChange } from '@/types';
+import { OutlineNode, ReorganizeChange, StoredOutlineNode } from '@/types';
 import { AI_MODELS, type AIProvider, getDefaultProvider, getDefaultModel } from '@/lib/ai-config';
 import { AIOutlineNode } from '@/lib/ai-schema';
 import { toast } from 'sonner';
+import { usePromptConfig } from '@/hooks/usePromptConfig';
+import PromptSelector from '@/components/settings/PromptSelector';
 
 interface AIReorganizeModalProps {
   onClose: () => void;
@@ -27,10 +29,54 @@ export const AIReorganizeModal = React.memo(({ onClose }: AIReorganizeModalProps
   const [provider, setProvider] = useState<AIProvider>(getDefaultProvider());
   const [model, setModel] = useState(() => getDefaultModel(provider));
 
+  // 提示词配置
+  const { prompts, loadPrompts, activePromptId: defaultPromptId, addCustomPrompt } = usePromptConfig();
+  const [selectedPromptId, setSelectedPromptId] = useState<string>('');
+
+  // 初始化提示词
+  useEffect(() => {
+    loadPrompts();
+  }, [loadPrompts]);
+
+  // 当默认提示词ID加载完成后，设置选中状态
+  useEffect(() => {
+    if (defaultPromptId && !selectedPromptId) {
+      setSelectedPromptId(defaultPromptId);
+    }
+  }, [defaultPromptId, selectedPromptId]);
+
   // ✅ 在组件顶层调用所有 hooks
   const buildDocumentTree = useEditorStore(s => s.buildDocumentTree);
   const loadDocument = useEditorStore(s => s.loadDocument);
   const saveDocument = useEditorStore(s => s.saveDocument);
+  const nodes = useEditorStore(s => s.nodes);
+  const focusedNodeId = useEditorStore(s => s.focusedNodeId);
+  const selectedNodeIds = useEditorStore(s => s.selectedNodeIds);
+  const rootId = useEditorStore(s => s.rootId);
+
+  // 计算选中的顶层节点（排除其父节点也被选中的节点）
+  const topLevelSelectedIds = React.useMemo(() => {
+    return selectedNodeIds.filter(id => {
+      const node = nodes[id];
+      if (!node) return false;
+      // 如果父节点不存在（是根节点）或者父节点没有被选中，则该节点是顶层选中节点
+      return !node.parentId || !selectedNodeIds.includes(node.parentId);
+    });
+  }, [selectedNodeIds, nodes]);
+
+  // 范围选择状态
+  const [scope, setScope] = useState<'document' | 'selection'>('document');
+
+  // 初始化范围：如果有选中的非根节点，默认选中该节点
+  useEffect(() => {
+    if (selectedNodeIds.length > 0) {
+      setScope('selection');
+    } else if (focusedNodeId && focusedNodeId !== rootId && nodes[focusedNodeId]) {
+      setScope('selection');
+    } else {
+      setScope('document');
+    }
+  }, [focusedNodeId, rootId, nodes, selectedNodeIds]);
 
   // 当提供商改变时，更新默认模型
   useEffect(() => {
@@ -42,14 +88,54 @@ export const AIReorganizeModal = React.memo(({ onClose }: AIReorganizeModalProps
     setError(null);
 
     try {
-      const currentDoc = buildDocumentTree();
-      const result = await reorganizeOutlineWithConfig(currentDoc.root, provider, model);
+      let targetNode: OutlineNode;
+
+      if (scope === 'selection') {
+        if (topLevelSelectedIds.length > 0) {
+          // 检查是否属于同一父节点
+          const parents = new Set(topLevelSelectedIds.map(id => nodes[id]?.parentId));
+          if (parents.size > 1) {
+            throw new Error('选中节点必须属于同一个父节点才能进行重组');
+          }
+          
+          // 构建虚拟根节点包含所有选中节点
+          const parentId = nodes[topLevelSelectedIds[0]].parentId;
+          const now = Date.now();
+          targetNode = {
+            id: 'virtual-root',
+            parentId: parentId,
+            content: 'Selected Content',
+            level: 0,
+            children: topLevelSelectedIds.map(id => buildSubTree(id, nodes)),
+            images: [],
+            collapsed: false,
+            createdAt: now,
+            updatedAt: now,
+          } as OutlineNode;
+        } else if (focusedNodeId && nodes[focusedNodeId]) {
+          targetNode = buildSubTree(focusedNodeId, nodes);
+        } else {
+          // Fallback to document if nothing selected
+          const currentDoc = buildDocumentTree();
+          targetNode = currentDoc.root;
+        }
+      } else {
+        const currentDoc = buildDocumentTree();
+        targetNode = currentDoc.root;
+      }
+
+      const result = await reorganizeOutlineWithConfig(
+        targetNode, 
+        provider, 
+        model,
+        selectedPromptId // 传递选中的提示词ID
+      );
 
       // 为 AI 返回的结构生成 ID
       const newTreeWithIds = addIdsToTree(result.newStructure);
 
       // 计算差异
-      const changes = calculateDiff(currentDoc.root, newTreeWithIds);
+      const changes = calculateDiff(targetNode, newTreeWithIds);
 
       setPreviewData({
         reasoning: result.reasoning,
@@ -69,11 +155,34 @@ export const AIReorganizeModal = React.memo(({ onClose }: AIReorganizeModalProps
     if (!previewData) return;
 
     const currentDoc = buildDocumentTree();
+    let newRoot: OutlineNode;
+
+    if (scope === 'selection') {
+      if (topLevelSelectedIds.length > 0) {
+        // 多选替换：在父节点中替换多个子节点
+        const parentId = nodes[topLevelSelectedIds[0]].parentId;
+        if (parentId) {
+          newRoot = replaceMultipleNodesInTree(currentDoc.root, parentId, topLevelSelectedIds, previewData.newTree.children);
+        } else {
+          // 如果是根节点的子节点（虽然 parentId 应该是 null? 不，root 的 children 的 parentId 是 rootId）
+          // 如果选中的是 root 节点本身？selectedNodeIds 不应该包含 rootId
+           newRoot = previewData.newTree; // Fallback
+        }
+      } else if (focusedNodeId) {
+        // 局部替换：在原树中找到目标节点并替换
+        newRoot = replaceNodeInTree(currentDoc.root, focusedNodeId, previewData.newTree);
+      } else {
+        newRoot = previewData.newTree;
+      }
+    } else {
+      // 全局替换
+      newRoot = previewData.newTree;
+    }
 
     // 为AI返回的树添加ID并恢复格式信息
     const newDoc = {
       ...currentDoc,
-      root: previewData.newTree,
+      root: newRoot,
       metadata: {
         ...currentDoc.metadata,
         updatedAt: Date.now(),
@@ -87,6 +196,52 @@ export const AIReorganizeModal = React.memo(({ onClose }: AIReorganizeModalProps
 
     toast.success('AI重组已保存');
     onClose();
+  };
+
+  // 辅助函数：构建子树
+  const buildSubTree = (nodeId: string, nodesMap: Record<string, StoredOutlineNode>): OutlineNode => {
+    const storedNode = nodesMap[nodeId];
+    if (!storedNode) {
+      throw new Error(`Node not found: ${nodeId}`);
+    }
+    return {
+      ...storedNode,
+      children: storedNode.children.map(childId => buildSubTree(childId, nodesMap)),
+    } as OutlineNode;
+  };
+
+  // 辅助函数：替换树中的节点
+  const replaceNodeInTree = (root: OutlineNode, targetId: string, replacement: OutlineNode): OutlineNode => {
+    if (root.id === targetId) {
+      return replacement;
+    }
+    return {
+      ...root,
+      children: root.children.map(child => replaceNodeInTree(child, targetId, replacement))
+    };
+  };
+
+  // 辅助函数：替换树中的多个节点（必须是同一父节点下的兄弟节点）
+  const replaceMultipleNodesInTree = (root: OutlineNode, targetParentId: string, oldIds: string[], newNodes: OutlineNode[]): OutlineNode => {
+    if (root.id === targetParentId) {
+      const resultChildren: OutlineNode[] = [];
+      let inserted = false;
+      for (const child of root.children) {
+        if (oldIds.includes(child.id)) {
+          if (!inserted) {
+            resultChildren.push(...newNodes);
+            inserted = true;
+          }
+        } else {
+          resultChildren.push(child);
+        }
+      }
+      return { ...root, children: resultChildren };
+    }
+    return {
+      ...root,
+      children: root.children.map(child => replaceMultipleNodesInTree(child, targetParentId, oldIds, newNodes))
+    };
   };
 
   // 为树结构添加 ID 并恢复格式信息
@@ -187,6 +342,26 @@ export const AIReorganizeModal = React.memo(({ onClose }: AIReorganizeModalProps
             <div className="space-y-6">
               {/* AI 配置选择 */}
               <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4 space-y-4">
+                {/* 提示词选择 */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    整理风格
+                  </label>
+                  <PromptSelector
+                    prompts={prompts}
+                    value={selectedPromptId}
+                    onChange={setSelectedPromptId}
+                    onAddCustomPrompt={async (prompt) => {
+                      await addCustomPrompt({
+                        name: prompt.name,
+                        description: prompt.description,
+                        systemPrompt: prompt.systemPrompt
+                      });
+                      await loadPrompts();
+                    }}
+                  />
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     AI 提供商

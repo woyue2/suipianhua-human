@@ -75,7 +75,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse 
     
     const query = searchQuery.toLowerCase();
     return localItems.filter(item => 
-      item.title.toLowerCase().includes(query)
+      item.title.toLowerCase().includes(query) ||
+      (item.searchableText && item.searchableText.toLowerCase().includes(query))
     );
   }, [localItems, searchQuery]);
 
@@ -186,6 +187,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggleCollapse 
       title: doc.title,
       emoji: doc.icon || '📄',
       isActive: false,
+      searchableText: doc.searchableText,
     }));
     // 按删除时间倒序排列（最新的在上面）
     const trashItems: Array<SidebarItem & { deletedAt: number }> = trashedDocs

@@ -8,6 +8,7 @@ import { useNodeFormatting } from '@/hooks/useNodeFormatting';
 import { ImageUploader } from './ImageUploader';
 import { NodeImages } from './NodeImages';
 import { IconPicker } from './IconPicker';
+import { CheckSquare, Square } from 'lucide-react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -29,6 +30,9 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
   const focusedNodeId = useEditorStore(s => s.focusedNodeId);
   const setFocusedNodeId = useEditorStore(s => s.setFocusedNodeId);
   const updateNodeIcon = useEditorStore(s => s.updateNodeIcon);
+  const isSelectionMode = useEditorStore(s => s.isSelectionMode);
+  const selectedNodeIds = useEditorStore(s => s.selectedNodeIds);
+  const toggleNodeSelection = useEditorStore(s => s.toggleNodeSelection);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const nodeRef = useRef<HTMLDivElement | null>(null);
@@ -96,6 +100,7 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
 
   const hasChildren = node.children && node.children.length > 0;
   const isCollapsed = node.collapsed || false;
+  const isSelected = selectedNodeIds.includes(nodeId);
 
   // 处理文本选择
   const handleTextSelectWrapper = (e: React.MouseEvent | React.SyntheticEvent) => {
@@ -230,14 +235,27 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
             hoverTimeoutRef.current = null;
           }
         }}
-        className="group flex items-start gap-2 sm:gap-3 relative hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded px-2 py-2 sm:py-1 transition-colors active:bg-slate-100 dark:active:bg-slate-800/50"
+        className={`group flex items-start gap-2 sm:gap-3 relative hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded px-2 py-2 sm:py-1 transition-colors active:bg-slate-100 dark:active:bg-slate-800/50 ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
       >
         <div
-          onClick={() => {
-            if (hasChildren) toggleCollapse(nodeId);
+          onClick={(e) => {
+            if (isSelectionMode) {
+              e.stopPropagation();
+              toggleNodeSelection(nodeId);
+            } else if (hasChildren) {
+              toggleCollapse(nodeId);
+            }
           }}
-          className={getBulletClass()}
-        />
+          className={isSelectionMode ? "mt-2.5 cursor-pointer" : getBulletClass()}
+        >
+          {isSelectionMode ? (
+            isSelected ? (
+              <CheckSquare size={16} className="text-primary" />
+            ) : (
+              <Square size={16} className="text-slate-300 dark:text-slate-600 hover:text-slate-500" />
+            )
+          ) : null}
+        </div>
 
         <div className="flex-1 min-w-0">
           <div className={`flex items-baseline gap-1 sm:gap-2 flex-wrap text-sm sm:text-base ${textStyle()}`}>
@@ -294,7 +312,14 @@ export const OutlineNode = memo(function OutlineNode({ nodeId, depth }: OutlineN
                   ${node.isItalic ? 'italic text-slate-500' : ''}
                   
                 `}
-                onClick={() => setIsEditing(true)}
+                onClick={(e) => {
+                  if (isSelectionMode) {
+                    e.stopPropagation();
+                    toggleNodeSelection(nodeId);
+                  } else {
+                    setIsEditing(true);
+                  }
+                }}
                 dangerouslySetInnerHTML={{
                   __html: node.content ? renderFormattedText : '<span class="text-slate-400">输入内容...</span>'
                 }}

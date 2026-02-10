@@ -61,6 +61,7 @@ export interface SidebarItem {
   children?: SidebarItem[];
   isOpen?: boolean;
   isActive?: boolean;
+  searchableText?: string;
 }
 
 // === AI 功能实体 ===

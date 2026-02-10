@@ -35,6 +35,10 @@ interface EditorStore {
   lineSpacing: LineSpacingType;
   focusedNodeId: string | null;
 
+  // Selection
+  isSelectionMode: boolean;
+  selectedNodeIds: string[];
+
   // 自动保存状态
   autoSaveEnabled: boolean;
   lastSavedAt: number | null;
@@ -49,7 +53,7 @@ interface EditorStore {
   };
 
   // Document list
-  documents: Array<{ id: string; title: string; updatedAt: number; deletedAt?: number | null; icon?: string }>;
+  documents: Array<{ id: string; title: string; updatedAt: number; deletedAt?: number | null; icon?: string; searchableText?: string }>;
   isLoadingDocuments: boolean;
 
   // 全局工具栏状态（确保同一时间只有一个工具栏显示）
@@ -57,6 +61,12 @@ interface EditorStore {
   activeFormatToolbarNodeId: string | null;
   setActiveToolbarNodeId: (nodeId: string | null) => void;
   setActiveFormatToolbarNodeId: (nodeId: string | null) => void;
+
+  // Selection Actions
+  toggleSelectionMode: () => void;
+  toggleNodeSelection: (id: string) => void;
+  clearSelection: () => void;
+  selectAll: (ids: string[]) => void;
 
   // Actions - 基础操作
   updateNodeContent: (id: string, content: string) => void;
@@ -90,7 +100,7 @@ interface EditorStore {
   buildDocumentTree: () => Document;
   loadDocument: (document: Document) => void;
   saveDocument: () => Promise<void>;
-  fetchDocuments: () => Promise<Array<{ id: string; title: string; updatedAt: number; deletedAt?: number | null; icon?: string }>>;
+  fetchDocuments: () => Promise<Array<{ id: string; title: string; updatedAt: number; deletedAt?: number | null; icon?: string; searchableText?: string }>>;
 
   // 初始化
   initializeWithData: (nodes: Record<string, StoredOutlineNode>, rootId: string, title: string) => void;
@@ -117,6 +127,8 @@ export const useEditorStore = create<EditorStore>()(
     isDarkMode: false,
     lineSpacing: DEFAULTS.LINE_SPACING,
     focusedNodeId: null,
+    isSelectionMode: false,
+    selectedNodeIds: [],
     autoSaveEnabled: resolvedAutoSaveEnabled,
     lastSavedAt: null,
     lastEditedAt: null,
@@ -529,6 +541,51 @@ export const useEditorStore = create<EditorStore>()(
 
     setActiveFormatToolbarNodeId: (nodeId) => {
       set({ activeFormatToolbarNodeId: nodeId });
+    },
+
+    toggleSelectionMode: () => {
+      set(state => {
+        state.isSelectionMode = !state.isSelectionMode;
+        if (!state.isSelectionMode) {
+          state.selectedNodeIds = [];
+        }
+      });
+    },
+
+    toggleNodeSelection: (id) => {
+      set(state => {
+        const getAllDescendants = (nodeId: string): string[] => {
+          const node = state.nodes[nodeId];
+          if (!node) return [];
+          let ids: string[] = [];
+          for (const childId of node.children) {
+            ids.push(childId);
+            ids = ids.concat(getAllDescendants(childId));
+          }
+          return ids;
+        };
+
+        const descendants = getAllDescendants(id);
+        const allIds = [id, ...descendants];
+        const isSelected = state.selectedNodeIds.includes(id);
+
+        if (isSelected) {
+          // Deselect node and all its descendants
+          state.selectedNodeIds = state.selectedNodeIds.filter(nodeId => !allIds.includes(nodeId));
+        } else {
+          // Select node and all its descendants
+          const newIds = allIds.filter(nodeId => !state.selectedNodeIds.includes(nodeId));
+          state.selectedNodeIds.push(...newIds);
+        }
+      });
+    },
+
+    clearSelection: () => {
+      set({ selectedNodeIds: [] });
+    },
+
+    selectAll: (ids) => {
+      set({ selectedNodeIds: ids });
     },
 
     buildDocumentTree: (): Document => {

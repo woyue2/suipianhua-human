@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useEditorStore } from '@/lib/store';
+import PromptSettings from '@/components/settings/PromptSettings';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -15,6 +16,7 @@ export const SettingsModal = React.memo<SettingsModalProps>(({ onClose }) => {
 
   const [localAutoSave, setLocalAutoSave] = useState(autoSaveEnabled);
   const [localDarkMode, setLocalDarkMode] = useState(isDarkMode);
+  const [activePromptId, setActivePromptId] = useState('reorganize-default');
 
   useEffect(() => {
     setLocalAutoSave(autoSaveEnabled);
@@ -22,7 +24,6 @@ export const SettingsModal = React.memo<SettingsModalProps>(({ onClose }) => {
   }, [autoSaveEnabled, isDarkMode]);
 
   const handleSave = () => {
-    // 保存设置到 store
     if (localAutoSave !== autoSaveEnabled) {
       setAutoSaveEnabled(localAutoSave);
     }
@@ -94,6 +95,14 @@ export const SettingsModal = React.memo<SettingsModalProps>(({ onClose }) => {
                 } pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out`}
               />
             </button>
+          </div>
+
+          {/* AI 提示词设置 */}
+          <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
+            <PromptSettings
+              activePromptId={activePromptId}
+              onChange={setActivePromptId}
+            />
           </div>
 
           {/* 存储信息 */}

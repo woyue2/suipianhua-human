@@ -65,6 +65,17 @@ function compareVersions(v1: string, v2: string): number {
   return 0;
 }
 
+// 辅助函数：从节点树中提取所有文本内容
+export function extractContentFromNode(node: OutlineNode): string {
+  let text = node.content || '';
+  if (node.children && node.children.length > 0) {
+    for (const child of node.children) {
+      text += ' ' + extractContentFromNode(child);
+    }
+  }
+  return text;
+}
+
 function migrateDocument(doc: Document): Document {
   let currentDoc: Document = {
     id: doc.id,
@@ -184,7 +195,7 @@ export const documentDb = {
    * 获取所有文档列表
    * Returns array of { id, title, updatedAt } sorted by updatedAt descending
    */
-  async listDocuments(): Promise<Array<{ id: string; title: string; updatedAt: number; deletedAt?: number | null; icon?: string }>> {
+  async listDocuments(): Promise<Array<{ id: string; title: string; updatedAt: number; deletedAt?: number | null; icon?: string; searchableText: string }>> {
     try {
       // 自动执行定期清理（每天一次）
       await this.periodicCleanup();
@@ -197,6 +208,7 @@ export const documentDb = {
           updatedAt: doc.updatedAt,
           deletedAt: doc.metadata.deletedAt ?? null,
           icon: doc.root.icon || doc.metadata.icon,
+          searchableText: extractContentFromNode(doc.root),
         }))
         .sort((a, b) => b.updatedAt - a.updatedAt);
     } catch (error) {

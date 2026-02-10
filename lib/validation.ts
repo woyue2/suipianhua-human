@@ -52,6 +52,9 @@ export const AIReorganizeRequestSchema = z.object({
   provider: z.enum(['openai', 'zhipu']).default('zhipu'),
   model: z.string().min(1, '模型不能为空'),
   temperature: z.number().min(0).max(2).default(0.7),
+  promptId: z.string().optional(),
+  customPrompt: z.string().optional(),
+  customSystemPrompt: z.string().optional(),
 });
 
 export type AIReorganizeRequest = z.infer<typeof AIReorganizeRequestSchema>;

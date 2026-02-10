@@ -180,7 +180,7 @@ export function generateHTML(doc: Document): string {
     return `
       <div class="${nodeClass}">
         <div class="node-content">
-          <div class="bullet"></div>
+          <div class="bullet" title="点击展开/折叠"></div>
           <div class="${contentClass}">
             ${iconHtml}${formatText(node.content)}
             ${tagsHtml}
@@ -197,17 +197,8 @@ export function generateHTML(doc: Document): string {
   };
 
   // Apply default collapse state: First node expanded, others collapsed
-  if (root.children.length > 0) {
-    root.children.forEach((child, index) => {
-      // First child expanded (collapsed = false), others collapsed (collapsed = true)
-      // We only set this on top-level nodes as requested
-      if (index === 0) {
-        child.collapsed = false;
-      } else {
-        child.collapsed = true;
-      }
-    });
-  }
+  // Removed to respect the current editor state and avoid side effects
+  // The exported HTML will match the current expanded/collapsed state of the document
 
   const contentHtml = root.children.map(child => renderNode(child)).join('');
 
