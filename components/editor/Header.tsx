@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Folder, Save, Upload, Download, Sparkles, Settings, Menu } from 'lucide-react';
+import { Folder, Save, Upload, Download, Sparkles, Settings, Menu, FileJson, FileCode } from 'lucide-react';
 import { useEditorStore } from '@/lib/store';
 import { AIReorganizeModal } from '@/components/ai/AIReorganizeModal';
 import { SettingsModal } from '@/components/ui/SettingsModal';
@@ -9,6 +9,7 @@ import { LineSpacingControl } from '@/components/LineSpacingControl';
 import { toastExportError, toastExportSuccess, toastImportError, toastImportSuccess } from '@/lib/toast';
 import { Document, OutlineNode, ImageAttachment } from '@/types';
 import { LINE_SPACING_CONFIG, LineSpacingType } from '@/lib/constants';
+import { generateHTML } from '@/lib/export-html';
 
 interface HeaderProps {
   toggleSidebar?: () => void;
@@ -149,6 +150,8 @@ export const Header = React.memo(({ toggleSidebar }: HeaderProps) => {
   const showSettings = useEditorStore(s => s.showSettings);
   const setShowSettings = useEditorStore(s => s.setShowSettings);
 
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
   const handleSave = async () => {
     console.log('💾 Save button clicked');
     try {
@@ -159,29 +162,43 @@ export const Header = React.memo(({ toggleSidebar }: HeaderProps) => {
     }
   };
 
-  const handleExport = () => {
-    console.log('📤 Export button clicked');
+  const handleExport = (exportType: 'json' | 'html' = 'json') => {
+    console.log(`📤 Export button clicked (${exportType})`);
     try {
       const doc = buildDocumentTree();
-      const payload = {
-        ...doc,
-        settings: {
-          lineSpacing,
-          autoSaveEnabled,
-          isDarkMode,
-        },
-      };
-      const blob = new Blob([JSON.stringify(payload, null, 2)], {
-        type: 'application/json',
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${doc.title || 'outline'}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
+      
+      if (exportType === 'html') {
+        const html = generateHTML(doc);
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${doc.title || 'outline'}.html`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const payload = {
+          ...doc,
+          settings: {
+            lineSpacing,
+            autoSaveEnabled,
+            isDarkMode,
+          },
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], {
+          type: 'application/json',
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${doc.title || 'outline'}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+      
       console.log('✅ Export completed');
       toastExportSuccess();
+      setShowExportMenu(false);
     } catch (error) {
       console.error('❌ Export error:', error);
       toastExportError();
@@ -350,13 +367,47 @@ export const Header = React.memo(({ toggleSidebar }: HeaderProps) => {
           >
             <Upload size={16} />
           </button>
-          <button 
-            onClick={handleExport}
-            className="p-1 px-2 hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 rounded shadow-sm flex items-center gap-1 transition-all"
-            title="导出"
-          >
-            <Download size={16} />
-          </button>
+          
+          <div className="relative">
+            <button 
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="p-1 px-2 hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 rounded shadow-sm flex items-center gap-1 transition-all"
+              title="导出"
+            >
+              <Download size={16} />
+            </button>
+
+            {showExportMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowExportMenu(false)} />
+                <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl z-50 py-1">
+                  <div className="px-3 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
+                    导出选项
+                  </div>
+                  <button
+                    onClick={() => handleExport('json')}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-300"
+                  >
+                    <FileJson size={18} />
+                    <div className="text-left">
+                      <div className="text-sm font-medium">导出 JSON</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">备份与恢复</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => handleExport('html')}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-300"
+                  >
+                    <FileCode size={18} />
+                    <div className="text-left">
+                      <div className="text-sm font-medium">导出 HTML</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400">单页网页格式</div>
+                    </div>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
 
           <div className="w-px h-6 bg-slate-300 dark:bg-slate-600 mx-1" />
 
